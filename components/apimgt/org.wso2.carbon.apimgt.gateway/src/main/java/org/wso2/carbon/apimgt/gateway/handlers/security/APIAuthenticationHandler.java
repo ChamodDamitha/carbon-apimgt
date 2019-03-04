@@ -42,6 +42,7 @@ import org.wso2.carbon.apimgt.gateway.MethodStats;
 import org.wso2.carbon.apimgt.gateway.handlers.Utils;
 import org.wso2.carbon.apimgt.gateway.handlers.security.authenticator.MultiAuthenticator;
 import org.wso2.carbon.apimgt.gateway.handlers.security.authenticator.MutualSSLAuthenticator;
+import org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth.BasicAuthAuthenticator;
 import org.wso2.carbon.apimgt.gateway.handlers.security.oauth.OAuthAuthenticator;
 import org.wso2.carbon.apimgt.gateway.internal.ServiceReferenceHolder;
 import org.wso2.carbon.apimgt.impl.APIConstants;
@@ -84,6 +85,15 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
     private String apiSecurity;
     private String apiLevelPolicy;
     private String certificateInformation;
+    private String resourceScopes;
+
+    public String getResourceScopes() {
+        return resourceScopes;
+    }
+
+    public void setResourceScopes(String resourceScopes) {
+        this.resourceScopes = resourceScopes;
+    }
 
     /**
      * To get the certificates uploaded against particular API.
@@ -190,6 +200,8 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
                     apiSecurity == null || apiSecurity.contains(APIConstants.DEFAULT_API_SECURITY_OAUTH2);
             boolean isMutualSSLProtected =
                     apiSecurity != null && apiSecurity.contains(APIConstants.API_SECURITY_MUTUAL_SSL);
+            boolean isBasicAuthProtected =
+                    apiSecurity == null || apiSecurity.contains(APIConstants.API_SECURITY_BASIC_AUTH);
             if (isOAuthProtected) {
                 if (authorizationHeader == null) {
                     try {
@@ -203,6 +215,9 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
                     }
                 }
             }
+            if (isBasicAuthProtected && authorizationHeader == null) {
+                authorizationHeader = HttpHeaders.AUTHORIZATION;
+            }
             if (isOAuthProtected && isMutualSSLProtected) {
                 Map<String, Object> parametersForAuthenticator = new HashMap<>();
                 parametersForAuthenticator.put(APIConstants.AUTHORIZATION_HEADER, authorizationHeader);
@@ -211,8 +226,12 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
                 parametersForAuthenticator.put(APIConstants.CERTIFICATE_INFORMATION, certificateInformation);
                 parametersForAuthenticator.put(APIConstants.API_SECURITY, apiSecurity);
                 authenticator = new MultiAuthenticator(parametersForAuthenticator);
-            } else if (isOAuthProtected) {
+            } else if (isOAuthProtected && isBasicAuthProtected) {
                 authenticator = new OAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage);
+            }  else if (isOAuthProtected) {
+                authenticator = new OAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage);
+            } else if (isBasicAuthProtected) {
+                authenticator = new BasicAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage, resourceScopes);
             } else {
                 authenticator = new MutualSSLAuthenticator(apiLevelPolicy, certificateInformation);
             }
@@ -249,10 +268,69 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
             if (authenticator == null) {
                 initializeAuthenticator();
             }
-            if (isAuthenticate(messageContext)) {
-                setAPIParametersToMessageContext(messageContext);
-                return true;
+//            if (isAuthenticate(messageContext)) {
+//                setAPIParametersToMessageContext(messageContext);
+//                return true;
+//            }
+            org.apache.axis2.context.MessageContext axis2MessageContext =
+                    ((Axis2MessageContext) messageContext).getAxis2MessageContext();
+            Object headers = axis2MessageContext
+                    .getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
+            if (headers != null && headers instanceof Map) {
+                Map headersMap = (Map) headers;
+                String authHeader = (String) headersMap.get(HttpHeaders.AUTHORIZATION);
+                if (authHeader == null) {
+                    headersMap.clear();
+                    return false;
+                }
+                boolean isOAuthProtected =
+                        apiSecurity == null || apiSecurity.contains(APIConstants.DEFAULT_API_SECURITY_OAUTH2);
+                boolean isBasicAuthProtected =
+                        apiSecurity == null || apiSecurity.contains(APIConstants.API_SECURITY_BASIC_AUTH);
+                if (authHeader.contains("Bearer") && isOAuthProtected) {
+                    if (authorizationHeader == null) {
+                        try {
+                            authorizationHeader = APIUtil
+                                    .getOAuthConfigurationFromAPIMConfig(APIConstants.AUTHORIZATION_HEADER);
+                            if (authorizationHeader == null) {
+                                authorizationHeader = HttpHeaders.AUTHORIZATION;
+                            }
+                        } catch (APIManagementException e) {
+                            log.error("Error while reading authorization header from APIM configurations", e);
+                        }
+                    }
+                    authenticator = new OAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage);
+                    authenticator.init(synapseEnvironment);
+                    if (!isAuthenticate(messageContext)) {
+                        if (authHeader.contains("Basic") && isBasicAuthProtected) {
+                            authenticator = new BasicAuthAuthenticator(HttpHeaders.AUTHORIZATION, removeOAuthHeadersFromOutMessage, resourceScopes);
+                            if (isAuthenticate(messageContext)) {
+                                setAPIParametersToMessageContext(messageContext);
+                                return true;
+                            }
+                        }
+                    } else {
+                        setAPIParametersToMessageContext(messageContext);
+                        return true;
+                    }
+                } else if (authHeader.contains("Basic") && isBasicAuthProtected) {
+                    authenticator = new BasicAuthAuthenticator(HttpHeaders.AUTHORIZATION, removeOAuthHeadersFromOutMessage, resourceScopes);
+                    if (isAuthenticate(messageContext)) {
+                        setAPIParametersToMessageContext(messageContext);
+                        return true;
+                    }
+                } else if (authHeader.contains("Bearer") && !isOAuthProtected) {
+                    log.error("Auth failure. Bearer tokens are not allowed!");
+                } else if (authHeader.contains("Basic") && !isBasicAuthProtected) {
+                    log.error("Auth failure. Basic auth is not allowed!");
+                } else if (!authHeader.contains("Bearer") && isOAuthProtected) {
+                    log.error("Auth failure. Bearer token expected!");
+                } else if (!authHeader.contains("Basic") && isBasicAuthProtected) {
+                    log.error("Auth failure. Basic auth expected!");
+                }
             }
+
+
         } catch (APISecurityException e) {
 
             if (Util.tracingEnabled() && keySpan != null) {
