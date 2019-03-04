@@ -56,6 +56,7 @@ import org.wso2.carbon.metrics.manager.Level;
 import org.wso2.carbon.metrics.manager.MetricManager;
 import org.wso2.carbon.metrics.manager.Timer;
 import org.wso2.carbon.um.ws.api.stub.RemoteUserStoreManagerServiceStub;
+import org.wso2.carbon.um.ws.api.stub.RemoteUserStoreManagerServiceUserStoreExceptionException;
 import org.wso2.carbon.utils.CarbonUtils;
 import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
 
@@ -76,7 +77,6 @@ public class BasicAuthAuthenticator implements Authenticator {
     private String securityHeader = HttpHeaders.AUTHORIZATION;
     private String defaultAPIHeader = "WSO2_AM_API_DEFAULT_VERSION";
     private String basicAuthKeyHeaderSegment = "Basic";
-    private String consumerKeySegmentDelimiter = " ";
     private String securityContextHeader;
     private boolean removeOAuthHeadersFromOutMessage = true;
     private boolean removeDefaultAPIHeaderFromOutMessage = true;
@@ -116,8 +116,6 @@ public class BasicAuthAuthenticator implements Authenticator {
 
     }
 
-    private final String serviceName = "AuthenticationAdmin";
-
     @MethodStats
     public boolean authenticate(MessageContext synCtx) throws APISecurityException {
         log.info("Basic Authentication initialized");
@@ -128,60 +126,57 @@ public class BasicAuthAuthenticator implements Authenticator {
                 ((Axis2MessageContext) synCtx).getAxis2MessageContext();
         Object headers = axis2MessageContext
                 .getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
-        try {
-            if (headers != null && headers instanceof Map) {
-                Map headersMap = (Map) headers;
-                String authHeader = (String) headersMap.get(securityHeader);
-                if (authHeader == null) {
-                    headersMap.clear();
+        if (headers != null && headers instanceof Map) {
+            Map headersMap = (Map) headers;
+            String authHeader = (String) headersMap.get(securityHeader);
+            if (authHeader == null) {
+                headersMap.clear();
+                sendUnauthorizedResponse(axis2MessageContext, synCtx, "401");
+                return false;
+            } else {
+                if (authHeader.contains(basicAuthKeyHeaderSegment)) {
+                    try {
+                        String authKey = new String(Base64.decode(authHeader.substring(6).trim()));
+                        if (authKey.contains(":")) {
+                            String credentials[] = authKey.split(":");
+                            username = credentials[0];
+                            password = credentials[1];
+                        } else {
+                            throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
+                                    "Invalid authorization key");
+                        }
+                    } catch (WSSecurityException e) {
+                        throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
+                                "Invalid authorization key");
+                    }
+                } else {
                     sendUnauthorizedResponse(axis2MessageContext, synCtx, "401");
                     return false;
-                } else {
-                    if (authHeader.contains(basicAuthKeyHeaderSegment)) {
-                        try {
-                            String authKey = new String(Base64.decode(authHeader.substring(6).trim()));
-                            if (authKey.contains(":")) {
-                                String credentials[] = authKey.split(":");
-                                username = credentials[0];
-                                password = credentials[1];
-                            } else {
-                                log.error("Invalid authorization key");
-                                return false;
-                            }
-                        } catch (WSSecurityException e) {
-                            log.error("Invalid authorization key");
-                            log.error(e.toString());
-                            return false;
-                        }
-                    } else {
-                        sendUnauthorizedResponse(axis2MessageContext, synCtx, "401");
-                        return false;
-                    }
                 }
             }
-        } catch (Exception e) {
-            log.error("Unable to execute the authorization process : ", e);
-            return false;
         }
 
         ConfigurationContext configurationContext = ServiceReferenceHolder.getInstance().getAxis2ConfigurationContext();
         APIManagerConfiguration config = HostObjectComponent.getAPIManagerConfiguration();
         String url = config.getFirstProperty(APIConstants.AUTH_MANAGER_URL);
         if (url == null) {
-            handleException("API key manager URL unspecified");
-            return false;
+            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, "API key manager URL unspecified");
         }
 
-        try {
+//        try {
 //            AuthenticationAdminStub authAdminStub = new AuthenticationAdminStub(configurationContext, url +
 //                    serviceName);
 //            ServiceClient client = authAdminStub._getServiceClient();
 //            Options options = client.getOptions();
 //            options.setManageSession(true);
-            RemoteUserStoreManagerServiceStub remoteUserStoreManagerServiceStub =
-                    new RemoteUserStoreManagerServiceStub(configurationContext, url +
+        RemoteUserStoreManagerServiceStub remoteUserStoreManagerServiceStub;
+        try {
+            remoteUserStoreManagerServiceStub = new RemoteUserStoreManagerServiceStub(configurationContext, url +
                     "RemoteUserStoreManagerService");
-            ServiceClient svcClient = remoteUserStoreManagerServiceStub._getServiceClient();
+        } catch (AxisFault axisFault) {
+            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, axisFault.getMessage());
+        }
+        ServiceClient svcClient = remoteUserStoreManagerServiceStub._getServiceClient();
             CarbonUtils.setBasicAccessSecurityHeaders(config.getFirstProperty(APIConstants.AUTH_MANAGER_USERNAME),
                     config.getFirstProperty(APIConstants.AUTH_MANAGER_PASSWORD), svcClient);
 
@@ -195,12 +190,15 @@ public class BasicAuthAuthenticator implements Authenticator {
 //            }
 //            PermissionUpdateUtil.updatePermissionTree(tenantId);
 
-            String host = new URL(url).getHost();
-//            if (!authAdminStub.login(username, password, host)) {
-            boolean logged = remoteUserStoreManagerServiceStub.authenticate(username, password);
-            if (!logged) {
-                handleException("Authentication failed. Please recheck the username and password and try again.");
-                return false;
+        boolean logged;
+        try {
+            logged = remoteUserStoreManagerServiceStub.authenticate(username, password);
+        } catch (Exception e) {
+            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
+        }
+        if (!logged) {
+                throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
+                        "Authentication failed due to username & password mismatch");
             } else { // username password matches
                 //Create a dummy AuthenticationContext object with hard coded values for
                 // Tier and KeyType. This is because we cannot determine the Tier nor Key
@@ -227,7 +225,12 @@ public class BasicAuthAuthenticator implements Authenticator {
                     String httpMethod = (String) axis2MessageContext.getProperty(APIConstants.DigestAuthConstants.HTTP_METHOD);
                     String resourceKey = apiElectedResource + ":" + httpMethod;
                     if (resourceScopes.containsKey(resourceKey)) {
-                        String[] user_roles = remoteUserStoreManagerServiceStub.getRoleListOfUser(username);
+                        String[] user_roles;
+                        try {
+                            user_roles = remoteUserStoreManagerServiceStub.getRoleListOfUser(username);
+                        } catch (Exception e) {
+                            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
+                        }
                         JSONObject scope = (JSONObject) resourceScopes.get(resourceKey);
                         String allowed_roles = (String) scope.get("roles");
                         for (String role : user_roles) {
@@ -243,14 +246,11 @@ public class BasicAuthAuthenticator implements Authenticator {
 //                  No scopes for API
                     return true;
                 }
-                handleException("Scope validation failed. TODO exception");
-                return false;
+                throw new APISecurityException(APISecurityConstants.INVALID_SCOPE, "Scope validation failed");
             }
-        } catch (Exception e) {
-            log.error(e.toString());
-            handleException("Login failed. TODO exception");
-            return false;
-        }
+//        } catch (Exception e) {
+//            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
+//        }
     }
 
 
@@ -269,12 +269,6 @@ public class BasicAuthAuthenticator implements Authenticator {
         messageContext.setTo(null);
         Axis2Sender.sendBack(messageContext);
     }
-
-    private static void handleException(String msg) throws APISecurityException {
-        log.error(msg);
-        throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_CREDENTIALS, msg);
-    }
-
 
     private String removeLeadingAndTrailing(String base) {
         String result = base;
