@@ -79,6 +79,7 @@ public class URITemplate implements Serializable{
         }
     }
 
+
     /**
      * Generating the script by aggregating scripts of each http method to form a single script in to be
      * used when generating synapse configuration file.
@@ -185,9 +186,8 @@ public class URITemplate implements Serializable{
         httpVerbs.add(httpVerb);
     }
 
-    public String getHttpVerbs() {
-
-        return httpVerb;
+    public LinkedHashSet<String> getHttpVerbs() {
+        return httpVerbs;
     }
 
     public void setAuthTypes(String authType) {
@@ -240,8 +240,8 @@ public class URITemplate implements Serializable{
     public Scope getScope() {
         return scope;
     }
-    public Scope getScopes() {
-        return scope;
+    public List<Scope> getScopes() {
+        return scopes;
     }
 
     public void setScope(Scope scope) {
