@@ -213,6 +213,12 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
     }
 
     protected Authenticator getAuthenticator() {
+        isOAuthProtected =
+                apiSecurity == null || apiSecurity.contains(APIConstants.DEFAULT_API_SECURITY_OAUTH2);
+        isMutualSSLProtected =
+                apiSecurity != null && apiSecurity.contains(APIConstants.API_SECURITY_MUTUAL_SSL);
+        isBasicAuthProtected =
+                apiSecurity == null || apiSecurity.contains(APIConstants.API_SECURITY_BASIC_AUTH);
         if (authenticator == null) {
             if (isOAuthProtected) {
                 if (authorizationHeader == null) {
@@ -291,7 +297,7 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
                     .getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
             if (headers != null && headers instanceof Map) {
                 Map headersMap = (Map) headers;
-                String authHeader = (String) headersMap.get(HttpHeaders.AUTHORIZATION);
+                String authHeader = (String) headersMap.get(authorizationHeader);
                 if (authHeader == null) {
                     headersMap.clear();
                     return false;
@@ -502,7 +508,7 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
                     APISecurityConstants.getFailureMessageDetailDescription(e.getErrorCode(), e.getMessage()) + "'"
                             + authorizationHeader + " : Bearer ACCESS_TOKEN' or '"
                             + authorizationHeader + " : Basic ACCESS_TOKEN' or '"
-                            + authorizationHeader + " : Bearer ACCESS_TOKEN; Basic ACCESS_TOKEN'";
+                            + authorizationHeader + " : Bearer ACCESS_TOKEN, Basic ACCESS_TOKEN'";
             errorDetail.setText(errorDescription);
         }
 

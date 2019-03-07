@@ -77,6 +77,7 @@ public class BasicAuthAuthenticator implements Authenticator {
     private String securityHeader = HttpHeaders.AUTHORIZATION;
     private String defaultAPIHeader = "WSO2_AM_API_DEFAULT_VERSION";
     private String basicAuthKeyHeaderSegment = "Basic";
+    private String authHeaderSplitter = ",";
     private String securityContextHeader;
     private boolean removeOAuthHeadersFromOutMessage = true;
     private boolean removeDefaultAPIHeaderFromOutMessage = true;
@@ -136,7 +137,23 @@ public class BasicAuthAuthenticator implements Authenticator {
             } else {
                 if (authHeader.contains(basicAuthKeyHeaderSegment)) {
                     try {
-                        String authKey = new String(Base64.decode(authHeader.substring(6).trim()));
+                        String[] tempAuthHeader = authHeader.split(authHeaderSplitter);
+                        String remainingHeader = "";
+                        for (String h: tempAuthHeader) {
+                            if (h.trim().startsWith(basicAuthKeyHeaderSegment)) {
+                                authHeader = h.trim();
+                            } else {
+                                remainingHeader += h + authHeaderSplitter;
+                            }
+                        }
+                        if (removeOAuthHeadersFromOutMessage) {
+                            if (tempAuthHeader.length > 1) {
+                                headersMap.put(securityHeader, remainingHeader);
+                            } else {
+                                headersMap.remove(securityHeader);
+                            }
+                        }
+                        String authKey = new String(Base64.decode(authHeader.substring(6).trim())); // len(Basic) = 5
                         if (authKey.contains(":")) {
                             String credentials[] = authKey.split(":");
                             username = credentials[0];
@@ -252,7 +269,6 @@ public class BasicAuthAuthenticator implements Authenticator {
 //            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
 //        }
     }
-
 
     /**
      * Send unauthorized response
