@@ -66,6 +66,7 @@ public class OAuthAuthenticator implements Authenticator {
     private boolean removeDefaultAPIHeaderFromOutMessage=true;
     private String clientDomainHeader = "referer";
     private String requestOrigin;
+    private String remainingAuthHeader;
 
     public OAuthAuthenticator() {
     }
@@ -112,7 +113,15 @@ public class OAuthAuthenticator implements Authenticator {
         }
 
         if(removeOAuthHeadersFromOutMessage){
-            headers.remove(securityHeader);
+//            headers.remove(securityHeader);
+//            if(log.isDebugEnabled()){
+//                log.debug("Removing Authorization header from headers");
+//            }
+            if (remainingAuthHeader != "") {
+                headers.put(securityHeader, remainingAuthHeader);
+            } else {
+                headers.remove(securityHeader);
+            }
             if(log.isDebugEnabled()){
                 log.debug("Removing Authorization header from headers");
             }
@@ -309,7 +318,9 @@ public class OAuthAuthenticator implements Authenticator {
         if (authHeader == null) {
             return null;
         }
-
+        remainingAuthHeader = "";
+        String consumerKey = null;
+        boolean consumerkeyFound = false;
         String[] headers = authHeader.split(oauthHeaderSplitter);
         if (headers != null) {
             for (int i = 0; i < headers.length; i++) {
@@ -322,15 +333,23 @@ public class OAuthAuthenticator implements Authenticator {
                             if (consumerKeyHeaderSegment.equals(elements[j].trim())) {
                                 isConsumerKeyHeaderAvailable = true;
                             } else if (isConsumerKeyHeaderAvailable) {
-                                return removeLeadingAndTrailing(elements[j].trim());
+//                                return removeLeadingAndTrailing(elements[j].trim());
+                                consumerKey = removeLeadingAndTrailing(elements[j].trim());
+                                consumerkeyFound = true;
                             }
                         }
                         j++;
                     }
                 }
+                if (!consumerkeyFound) {
+                    remainingAuthHeader += headers[i] + oauthHeaderSplitter;
+                } else {
+                    consumerkeyFound = false;
+                }
             }
         }
-        return null;
+//        return null;
+        return consumerKey;
     }
 
     private String removeLeadingAndTrailing(String base) {
