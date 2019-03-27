@@ -287,10 +287,10 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
             if (authenticator == null) {
                 initializeAuthenticator();
             }
-//            if (isAuthenticate(messageContext)) {
-//                setAPIParametersToMessageContext(messageContext);
-//                return true;
-//            }
+            if (isAuthenticate(messageContext)) {
+                setAPIParametersToMessageContext(messageContext);
+                return true;
+            }
             org.apache.axis2.context.MessageContext axis2MessageContext =
                     ((Axis2MessageContext) messageContext).getAxis2MessageContext();
             Object headers = axis2MessageContext
@@ -300,6 +300,19 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
                 String authHeader = (String) headersMap.get(authorizationHeader);
                 if (authHeader == null) {
                     headersMap.clear();
+                    if (isBasicAuthProtected && isOAuthProtected) {
+                        throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_CREDENTIALS,
+                                "Authentication header '" + authorizationHeader +
+                                        "' expected with Basic Auth or OAuth credentials!");
+                    } else if (isBasicAuthProtected) {
+                        throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_CREDENTIALS,
+                                "Authentication header '" + authorizationHeader +
+                                        "' expected with Basic Auth credentials!");
+                    } else if (isOAuthProtected) {
+                        throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_CREDENTIALS,
+                                "Authentication header '" + authorizationHeader +
+                                        "' expected with OAuth credentials!");
+                    }
                     return false;
                 }
 
