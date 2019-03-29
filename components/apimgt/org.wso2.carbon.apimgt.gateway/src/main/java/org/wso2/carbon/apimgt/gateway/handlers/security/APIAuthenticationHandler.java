@@ -302,20 +302,25 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
                 String authHeader = "";
                 if (authorizationHeader != null) {
                     authHeader = (String) headersMap.get(authorizationHeader);
+                    authHeader = authHeader == null ? "" : authHeader;
                 }
 
                 if (isOAuthProtected && isBasicAuthProtected) {
                     if (authHeader.contains("Bearer")) {
-                        if (!isAuthenticate(messageContext)) {
+                        try {
+                            if (isAuthenticate(messageContext)) {
+                                setAPIParametersToMessageContext(messageContext);
+                                return true;
+                            }
+                        } catch (APISecurityException e) {
                             if (authHeader.contains("Basic")) {
                                 if (secondAuthenticator.authenticate(messageContext)) {
                                     setAPIParametersToMessageContext(messageContext);
                                     return true;
                                 }
+                            } else {
+                                throw e;
                             }
-                        } else {
-                            setAPIParametersToMessageContext(messageContext);
-                            return true;
                         }
                     } else if (authHeader.contains("Basic")) {
                         if (secondAuthenticator.authenticate(messageContext)) {
