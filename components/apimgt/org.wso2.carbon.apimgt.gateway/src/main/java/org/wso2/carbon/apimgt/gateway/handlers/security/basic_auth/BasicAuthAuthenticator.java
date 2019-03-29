@@ -132,8 +132,8 @@ public class BasicAuthAuthenticator implements Authenticator {
             String authHeader = (String) headersMap.get(securityHeader);
             if (authHeader == null) {
                 headersMap.clear();
-                sendUnauthorizedResponse(axis2MessageContext, synCtx, "401");
-                return false;
+                throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_CREDENTIALS,
+                        "Basic Auth Header not found");
             } else {
                 if (authHeader.contains(basicAuthKeyHeaderSegment)) {
                     try {
@@ -167,8 +167,8 @@ public class BasicAuthAuthenticator implements Authenticator {
                                 "Invalid authorization key");
                     }
                 } else {
-                    sendUnauthorizedResponse(axis2MessageContext, synCtx, "401");
-                    return false;
+                    throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_CREDENTIALS,
+                            "Basic Auth Header not found");
                 }
             }
         }
