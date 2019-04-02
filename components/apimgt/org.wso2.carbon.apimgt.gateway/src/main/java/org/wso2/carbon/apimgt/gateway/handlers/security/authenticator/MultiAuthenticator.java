@@ -24,6 +24,7 @@ import org.apache.synapse.core.SynapseEnvironment;
 import org.wso2.carbon.apimgt.gateway.handlers.security.APISecurityConstants;
 import org.wso2.carbon.apimgt.gateway.handlers.security.APISecurityException;
 import org.wso2.carbon.apimgt.gateway.handlers.security.Authenticator;
+import org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth.BasicAuthAuthenticator;
 import org.wso2.carbon.apimgt.gateway.handlers.security.oauth.OAuthAuthenticator;
 import org.wso2.carbon.apimgt.impl.APIConstants;
 
@@ -54,6 +55,11 @@ public class MultiAuthenticator implements Authenticator {
                         new String[] { APIConstants.AUTHORIZATION_HEADER,
                                 APIConstants.REMOVE_OAUTH_HEADERS_FROM_MESSAGE },
                         new Class[] { String.class, boolean.class }));
+        supportedSecurityProtocols
+                .add(new SecurityProtocol(APIConstants.API_SECURITY_BASIC_AUTH, BasicAuthAuthenticator.class.getName(),
+                        new String[] { APIConstants.AUTHORIZATION_HEADER,
+                                APIConstants.REMOVE_OAUTH_HEADERS_FROM_MESSAGE, "resourceScopes" },
+                        new Class[] { String.class, boolean.class, String.class }));
     }
 
     /**
