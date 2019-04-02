@@ -828,6 +828,9 @@ public final class APIConstants {
     public static final String RESOURCE_CACHE_NAME = "resourceCache";
     public static final String POLICY_CACHE_CONTEXT = "POLICY:";
     public static final String GATEWAY_KEY_CACHE_NAME = "gatewayKeyCache";
+    public static final String GATEWAY_USERNAME_CACHE_NAME = "gatewayUsernameCache";
+    public static final String GATEWAY_INVALID_USERNAME_CACHE_NAME = "GATEWAY_INVALID_USERNAME_CACHE";
+    public static final String GATEWAY_RESOURCE_CACHE_NAME = "gatewayResourceCache";
     public static final String GATEWAY_CERTIFICATE_CACHE_NAME = "gatewayCertificateCache";
     public static final String GATEWAY_TOKEN_CACHE_NAME = "GATEWAY_TOKEN_CACHE";
     public static final String GATEWAY_INVALID_TOKEN_CACHE_NAME = "GATEWAY_INVALID_TOKEN_CACHE";
