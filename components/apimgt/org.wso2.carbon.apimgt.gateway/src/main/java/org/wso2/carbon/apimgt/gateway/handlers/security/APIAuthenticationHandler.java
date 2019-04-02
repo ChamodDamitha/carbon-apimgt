@@ -79,7 +79,6 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
     private static final Log log = LogFactory.getLog(APIAuthenticationHandler.class);
 
     private volatile Authenticator authenticator;
-    private volatile Authenticator secondAuthenticator;
     private SynapseEnvironment synapseEnvironment;
 
     private String authorizationHeader;
@@ -191,19 +190,11 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
         } else {
             log.warn("Unable to destroy uninitialized authentication handler instance");
         }
-        if (secondAuthenticator != null) {
-            secondAuthenticator.destroy();
-        } else {
-            log.warn("Unable to destroy uninitialized authentication handler instance");
-        }
     }
 
     @edu.umd.cs.findbugs.annotations.SuppressWarnings(value = "LEST_LOST_EXCEPTION_STACK_TRACE", justification = "The exception needs to thrown for fault sequence invocation")
     protected void initializeAuthenticator() {
         getAuthenticator().init(synapseEnvironment);
-        if (secondAuthenticator != null) {
-            secondAuthenticator.init(synapseEnvironment);
-        }
     }
 
     protected Authenticator getAuthenticator() {
@@ -230,7 +221,8 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
             if (isBasicAuthProtected && authorizationHeader == null) {
                 authorizationHeader = HttpHeaders.AUTHORIZATION;
             }
-            if (isOAuthProtected && isMutualSSLProtected) {
+            if (((isOAuthProtected || isBasicAuthProtected) && isMutualSSLProtected)
+                    || (isBasicAuthProtected && isOAuthProtected)) {
                 Map<String, Object> parametersForAuthenticator = new HashMap<>();
                 parametersForAuthenticator.put(APIConstants.AUTHORIZATION_HEADER, authorizationHeader);
                 parametersForAuthenticator.put(APIConstants.REMOVE_OAUTH_HEADERS_FROM_MESSAGE, removeOAuthHeadersFromOutMessage);
@@ -238,9 +230,6 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
                 parametersForAuthenticator.put(APIConstants.CERTIFICATE_INFORMATION, certificateInformation);
                 parametersForAuthenticator.put(APIConstants.API_SECURITY, apiSecurity);
                 authenticator = new MultiAuthenticator(parametersForAuthenticator);
-            } else if (isOAuthProtected && isBasicAuthProtected) {
-                authenticator = new OAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage);
-                secondAuthenticator = new BasicAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage, resourceScopes);
             } else if (isOAuthProtected) {
                 authenticator = new OAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage);
             } else if (isBasicAuthProtected) {
@@ -281,73 +270,73 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
             if (authenticator == null) {
                 initializeAuthenticator();
             }
-//            if (isAuthenticate(messageContext)) {
-//                setAPIParametersToMessageContext(messageContext);
-//                return true;
-//            }
-
-            isOAuthProtected =
-                    apiSecurity == null || apiSecurity.contains(APIConstants.DEFAULT_API_SECURITY_OAUTH2);
-            isMutualSSLProtected =
-                    apiSecurity != null && apiSecurity.contains(APIConstants.API_SECURITY_MUTUAL_SSL);
-            isBasicAuthProtected =
-                    apiSecurity != null && apiSecurity.contains(APIConstants.API_SECURITY_BASIC_AUTH);
-
-            org.apache.axis2.context.MessageContext axis2MessageContext =
-                    ((Axis2MessageContext) messageContext).getAxis2MessageContext();
-            Object headers = axis2MessageContext
-                    .getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
-            if (headers != null && headers instanceof Map) {
-                Map headersMap = (Map) headers;
-                String authHeader = "";
-                if (authorizationHeader != null) {
-                    authHeader = (String) headersMap.get(authorizationHeader);
-                    authHeader = authHeader == null ? "" : authHeader;
-                }
-
-                if (isOAuthProtected && isBasicAuthProtected) {
-                    if (authHeader.contains("Bearer")) {
-                        try {
-                            if (isAuthenticate(messageContext)) {
-                                setAPIParametersToMessageContext(messageContext);
-                                return true;
-                            }
-                        } catch (APISecurityException e) {
-                            if (authHeader.contains("Basic")) {
-                                if (secondAuthenticator.authenticate(messageContext)) {
-                                    setAPIParametersToMessageContext(messageContext);
-                                    return true;
-                                }
-                            } else {
-                                throw e;
-                            }
-                        }
-                    } else if (authHeader.contains("Basic")) {
-                        if (secondAuthenticator.authenticate(messageContext)) {
-                            setAPIParametersToMessageContext(messageContext);
-                            return true;
-                        }
-                    } else {
-                        throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_AND_OAUTH_CREDENTIALS,
-                                "Authentication header '" + authorizationHeader +
-                                        "' expected with Basic Auth or OAuth credentials!");
-                    }
-                } else if (isOAuthProtected && isAuthenticate(messageContext)) {
-                    setAPIParametersToMessageContext(messageContext);
-                    return true;
-                } else if (isBasicAuthProtected) {
-                    if (authHeader.contains("Basic")) {
-                        if (isAuthenticate(messageContext)) {
-                            setAPIParametersToMessageContext(messageContext);
-                            return true;
-                        }
-                    } else {
-                        throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
-                                "Authentication header '" + authorizationHeader +
-                                        "' expected with Basic Auth credentials!");
-                    }
-                }
+            if (isAuthenticate(messageContext)) {
+                setAPIParametersToMessageContext(messageContext);
+                return true;
             }
+
+//            isOAuthProtected =
+//                    apiSecurity == null || apiSecurity.contains(APIConstants.DEFAULT_API_SECURITY_OAUTH2);
+//            isMutualSSLProtected =
+//                    apiSecurity != null && apiSecurity.contains(APIConstants.API_SECURITY_MUTUAL_SSL);
+//            isBasicAuthProtected =
+//                    apiSecurity != null && apiSecurity.contains(APIConstants.API_SECURITY_BASIC_AUTH);
+//
+//            org.apache.axis2.context.MessageContext axis2MessageContext =
+//                    ((Axis2MessageContext) messageContext).getAxis2MessageContext();
+//            Object headers = axis2MessageContext
+//                    .getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
+//            if (headers != null && headers instanceof Map) {
+//                Map headersMap = (Map) headers;
+//                String authHeader = "";
+//                if (authorizationHeader != null) {
+//                    authHeader = (String) headersMap.get(authorizationHeader);
+//                    authHeader = authHeader == null ? "" : authHeader;
+//                }
+//
+//                if (isOAuthProtected && isBasicAuthProtected) {
+//                    if (authHeader.contains("Bearer")) {
+//                        try {
+//                            if (isAuthenticate(messageContext)) {
+//                                setAPIParametersToMessageContext(messageContext);
+//                                return true;
+//                            }
+//                        } catch (APISecurityException e) {
+//                            if (authHeader.contains("Basic")) {
+//                                if (secondAuthenticator.authenticate(messageContext)) {
+//                                    setAPIParametersToMessageContext(messageContext);
+//                                    return true;
+//                                }
+//                            } else {
+//                                throw e;
+//                            }
+//                        }
+//                    } else if (authHeader.contains("Basic")) {
+//                        if (secondAuthenticator.authenticate(messageContext)) {
+//                            setAPIParametersToMessageContext(messageContext);
+//                            return true;
+//                        }
+//                    } else {
+//                        throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_AND_OAUTH_CREDENTIALS,
+//                                "Authentication header '" + authorizationHeader +
+//                                        "' expected with Basic Auth or OAuth credentials!");
+//                    }
+//                } else if (isOAuthProtected && isAuthenticate(messageContext)) {
+//                    setAPIParametersToMessageContext(messageContext);
+//                    return true;
+//                } else if (isBasicAuthProtected) {
+//                    if (authHeader.contains("Basic")) {
+//                        if (isAuthenticate(messageContext)) {
+//                            setAPIParametersToMessageContext(messageContext);
+//                            return true;
+//                        }
+//                    } else {
+//                        throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
+//                                "Authentication header '" + authorizationHeader +
+//                                        "' expected with Basic Auth credentials!");
+//                    }
+//                }
+//            }
 
         } catch (APISecurityException e) {
 

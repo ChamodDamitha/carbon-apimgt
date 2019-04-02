@@ -312,7 +312,7 @@ public class BasicAuthAuthenticator implements Authenticator {
     }
 
     public String getChallengeString() {
-        return "OAuth2 realm=\"WSO2 API Manager\"";
+        return "Basic Auth realm=\"WSO2 API Manager\"";
     }
 
     private String getClientDomain(MessageContext synCtx) {
