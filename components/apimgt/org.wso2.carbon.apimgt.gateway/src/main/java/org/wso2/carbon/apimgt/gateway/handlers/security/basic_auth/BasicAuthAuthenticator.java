@@ -17,12 +17,8 @@
 package org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth;
 
 import org.apache.axis2.AxisFault;
-import org.apache.axis2.Constants;
-import org.apache.axis2.client.Options;
 import org.apache.axis2.client.ServiceClient;
 import org.apache.axis2.context.ConfigurationContext;
-import org.apache.axis2.context.ServiceContext;
-import org.apache.axis2.transport.http.HTTPConstants;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHeaders;
@@ -30,39 +26,21 @@ import org.apache.synapse.MessageContext;
 import org.apache.synapse.core.SynapseEnvironment;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.apache.synapse.core.axis2.Axis2Sender;
-import org.apache.synapse.rest.RESTConstants;
 import org.apache.ws.security.WSSecurityException;
 import org.apache.ws.security.util.Base64;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
-import org.mozilla.javascript.NativeObject;
-import org.wso2.carbon.apimgt.api.APIManagementException;
-import org.wso2.carbon.apimgt.gateway.APIMgtGatewayConstants;
 import org.wso2.carbon.apimgt.gateway.MethodStats;
 import org.wso2.carbon.apimgt.gateway.handlers.security.*;
 import org.wso2.carbon.apimgt.gateway.internal.ServiceReferenceHolder;
 import org.wso2.carbon.apimgt.hostobjects.internal.HostObjectComponent;
 import org.wso2.carbon.apimgt.impl.APIConstants;
 import org.wso2.carbon.apimgt.impl.APIManagerConfiguration;
-import org.wso2.carbon.apimgt.impl.dto.APIKeyValidationInfoDTO;
-import org.wso2.carbon.apimgt.tracing.TracingSpan;
-import org.wso2.carbon.apimgt.tracing.TracingTracer;
-import org.wso2.carbon.apimgt.tracing.Util;
-import org.wso2.carbon.authenticator.stub.AuthenticationAdminStub;
-import org.wso2.carbon.base.MultitenantConstants;
-import org.wso2.carbon.core.util.PermissionUpdateUtil;
-import org.wso2.carbon.metrics.manager.Level;
-import org.wso2.carbon.metrics.manager.MetricManager;
-import org.wso2.carbon.metrics.manager.Timer;
 import org.wso2.carbon.um.ws.api.stub.RemoteUserStoreManagerServiceStub;
-import org.wso2.carbon.um.ws.api.stub.RemoteUserStoreManagerServiceUserStoreExceptionException;
 import org.wso2.carbon.utils.CarbonUtils;
-import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
 
-import java.net.URL;
 import java.util.Map;
-import java.util.TreeMap;
 
 /**
  * An API consumer authenticator which authenticates user requests using
@@ -84,7 +62,7 @@ public class BasicAuthAuthenticator implements Authenticator {
     private String clientDomainHeader = "referer";
     private String requestOrigin;
     private JSONObject resourceScopes;
-
+    private BasicAuthCredentialValidator basicAuthCredentialValidator;
 
     public BasicAuthAuthenticator() {
     }
@@ -105,6 +83,11 @@ public class BasicAuthAuthenticator implements Authenticator {
             } catch (WSSecurityException e) {
                 log.error(e);
             }
+        }
+        try {
+            this.basicAuthCredentialValidator = new BasicAuthCredentialValidator();
+        } catch (APISecurityException e) {
+            log.error(e);
         }
     }
 
@@ -173,101 +156,97 @@ public class BasicAuthAuthenticator implements Authenticator {
             }
         }
 
-        ConfigurationContext configurationContext = ServiceReferenceHolder.getInstance().getAxis2ConfigurationContext();
-        APIManagerConfiguration config = HostObjectComponent.getAPIManagerConfiguration();
-        String url = config.getFirstProperty(APIConstants.AUTH_MANAGER_URL);
-        if (url == null) {
-            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, "API key manager URL unspecified");
-        }
+        boolean logged = false;
+        logged = basicAuthCredentialValidator.validate(username, password);
+//        if (!logged) {
 
-//        try {
-//            AuthenticationAdminStub authAdminStub = new AuthenticationAdminStub(configurationContext, url +
-//                    serviceName);
-//            ServiceClient client = authAdminStub._getServiceClient();
-//            Options options = client.getOptions();
-//            options.setManageSession(true);
-        RemoteUserStoreManagerServiceStub remoteUserStoreManagerServiceStub;
-        try {
-            remoteUserStoreManagerServiceStub = new RemoteUserStoreManagerServiceStub(configurationContext, url +
-                    "RemoteUserStoreManagerService");
-        } catch (AxisFault axisFault) {
-            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, axisFault.getMessage());
-        }
-        ServiceClient svcClient = remoteUserStoreManagerServiceStub._getServiceClient();
-            CarbonUtils.setBasicAccessSecurityHeaders(config.getFirstProperty(APIConstants.AUTH_MANAGER_USERNAME),
-                    config.getFirstProperty(APIConstants.AUTH_MANAGER_PASSWORD), svcClient);
-
-
-//            String tenantDomain = MultitenantUtils.getTenantDomain(username);
-//            //update permission cache before validate user
-//            int tenantId = ServiceReferenceHolder.getInstance().getRealmService().getTenantManager()
-//                    .getTenantId(tenantDomain);
-//            if (tenantId == MultitenantConstants.INVALID_TENANT_ID) {
-//                handleException("Invalid tenant domain.");
+//            ConfigurationContext configurationContext = ServiceReferenceHolder.getInstance().getAxis2ConfigurationContext();
+//            APIManagerConfiguration config = HostObjectComponent.getAPIManagerConfiguration();
+//            String url = config.getFirstProperty(APIConstants.AUTH_MANAGER_URL);
+//            if (url == null) {
+//                throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, "API key manager URL unspecified");
 //            }
-//            PermissionUpdateUtil.updatePermissionTree(tenantId);
+//
+//            RemoteUserStoreManagerServiceStub remoteUserStoreManagerServiceStub;
+//            try {
+//                remoteUserStoreManagerServiceStub = new RemoteUserStoreManagerServiceStub(configurationContext, url +
+//                        "RemoteUserStoreManagerService");
+//            } catch (AxisFault axisFault) {
+//                throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, axisFault.getMessage());
+//            }
+//            ServiceClient svcClient = remoteUserStoreManagerServiceStub._getServiceClient();
+//            CarbonUtils.setBasicAccessSecurityHeaders(config.getFirstProperty(APIConstants.AUTH_MANAGER_USERNAME),
+//                    config.getFirstProperty(APIConstants.AUTH_MANAGER_PASSWORD), svcClient);
 
-        boolean logged;
-        try {
-            logged = remoteUserStoreManagerServiceStub.authenticate(username, password);
-        } catch (Exception e) {
-            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
-        }
+//            try {
+//                logged = remoteUserStoreManagerServiceStub.authenticate(username, password);
+//            } catch (Exception e) {
+//                throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
+//            }
+//        }
+
         if (!logged) {
                 throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
                         "Authentication failed due to username & password mismatch");
             } else { // username password matches
-                //Create a dummy AuthenticationContext object with hard coded values for
-                // Tier and KeyType. This is because we cannot determine the Tier nor Key
-                // Type without subscription information..
-                AuthenticationContext authContext = new AuthenticationContext();
-                authContext.setAuthenticated(true);
-                authContext.setTier(APIConstants.UNAUTHENTICATED_TIER);
-                authContext.setStopOnQuotaReach(true);//Since we don't have details on unauthenticated tier we setting stop on quota reach true
-                //Requests are throttled by the ApiKey that is set here. In an unauthenticated scenario,
-                //we will use the username for throttling.
-                //Username is extracted from the request
-                authContext.setApiKey(username);
-                authContext.setKeyType(APIConstants.API_KEY_TYPE_PRODUCTION);
-                authContext.setUsername(username);
-                authContext.setCallerToken(null);
-                authContext.setApplicationName(null);
-                authContext.setApplicationId(username); //Set username as application ID in basic auth scenario
-                authContext.setConsumerKey(null);
-                APISecurityUtils.setAuthenticationContext(synCtx, authContext, securityContextHeader);
+                //scope validation
+                boolean scopesValid = basicAuthCredentialValidator.validateScopes(username, resourceScopes, synCtx);
 
-//              Scope validation with user roles
-                if (resourceScopes != null) {
-                    String apiElectedResource = (String) synCtx.getProperty(APIConstants.API_ELECTED_RESOURCE);
-                    String httpMethod = (String) axis2MessageContext.getProperty(APIConstants.DigestAuthConstants.HTTP_METHOD);
-                    String resourceKey = apiElectedResource + ":" + httpMethod;
-                    if (resourceScopes.containsKey(resourceKey)) {
-                        String[] user_roles;
-                        try {
-                            user_roles = remoteUserStoreManagerServiceStub.getRoleListOfUser(username);
-                        } catch (Exception e) {
-                            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
-                        }
-                        JSONObject scope = (JSONObject) resourceScopes.get(resourceKey);
-                        String allowed_roles = (String) scope.get("roles");
-                        for (String role : user_roles) {
-                            if (allowed_roles.contains(role)) {
-                                return true;
-                            }
-                        }
-                    } else {
-//                      No scopes for the requested resource
-                        return true;
-                    }
-                } else {
-//                  No scopes for API
+                if (scopesValid) {
+                    //Create a dummy AuthenticationContext object with hard coded values for
+                    // Tier and KeyType. This is because we cannot determine the Tier nor Key
+                    // Type without subscription information..
+                    AuthenticationContext authContext = new AuthenticationContext();
+                    authContext.setAuthenticated(true);
+                    authContext.setTier(APIConstants.UNAUTHENTICATED_TIER);
+                    authContext.setStopOnQuotaReach(true);//Since we don't have details on unauthenticated tier we setting stop on quota reach true
+                    //Requests are throttled by the ApiKey that is set here. In an unauthenticated scenario,
+                    //we will use the username for throttling.
+                    //Username is extracted from the request
+                    authContext.setApiKey(username);
+                    authContext.setKeyType(APIConstants.API_KEY_TYPE_PRODUCTION);
+                    authContext.setUsername(username);
+                    authContext.setCallerToken(null);
+                    authContext.setApplicationName(null);
+                    authContext.setApplicationId(username); //Set username as application ID in basic auth scenario
+                    authContext.setConsumerKey(null);
+                    APISecurityUtils.setAuthenticationContext(synCtx, authContext, securityContextHeader);
+
                     return true;
                 }
-                throw new APISecurityException(APISecurityConstants.INVALID_SCOPE, "Scope validation failed");
+//              Scope validation with user roles
+//                if (resourceScopes != null) {
+//                    String apiElectedResource = (String) synCtx.getProperty(APIConstants.API_ELECTED_RESOURCE);
+//                    String httpMethod = (String) axis2MessageContext.getProperty(APIConstants.DigestAuthConstants.HTTP_METHOD);
+//                    String resourceKey = apiElectedResource + ":" + httpMethod;
+//                    if (resourceScopes.containsKey(resourceKey)) {
+//                        String[] user_roles;
+//                        try {
+//                            user_roles = remoteUserStoreManagerServiceStub.getRoleListOfUser(username);
+//                        } catch (Exception e) {
+//                            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
+//                        }
+//                        JSONObject scope = (JSONObject) resourceScopes.get(resourceKey);
+//                        String allowed_roles = (String) scope.get("roles");
+//                        for (String role : user_roles) {
+//                            if (allowed_roles.contains(role)) {
+//                                return true;
+//                            }
+//                        }
+//                    } else {
+////                      No scopes for the requested resource
+//                        return true;
+//                    }
+//                } else {
+////                  No scopes for API
+//                    return true;
+//                }
+//                throw new APISecurityException(APISecurityConstants.INVALID_SCOPE, "Scope validation failed");
             }
 //        } catch (Exception e) {
 //            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
 //        }
+        return false;
     }
 
     /**
