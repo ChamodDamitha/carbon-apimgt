@@ -37,6 +37,7 @@ import org.wso2.carbon.base.MultitenantConstants;
 import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.identity.oauth.listener.IdentityOathEventListener;
+import org.wso2.carbon.user.api.Permission;
 import org.wso2.carbon.user.api.Tenant;
 import org.wso2.carbon.user.api.UserStoreException;
 import org.wso2.carbon.user.core.UserCoreConstants;
@@ -69,13 +70,79 @@ public class KeyManagerUserOperationListener extends IdentityOathEventListener {
         return getOrderId() - 1;
     }
 
+    @java.lang.Override
+    public boolean doPreAddUser(java.lang.String userName, java.lang.Object credential, java.lang.String[] roleList, java.util.Map<java.lang.String, java.lang.String> claims, java.lang.String profile, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+        clearGatewayUsernameCache(userName);
+        return super.doPreAddUser(userName, credential, roleList, claims, profile, userStoreManager);
+    }
+
+    @java.lang.Override
+    public boolean doPreUpdateCredential(java.lang.String userName, java.lang.Object newCredential, java.lang.Object oldCredential, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+        clearGatewayUsernameCache(userName);
+        return super.doPreUpdateCredential(userName, newCredential, oldCredential, userStoreManager);
+    }
+
+    @java.lang.Override
+    public boolean doPreUpdateCredentialByAdmin(java.lang.String userName, java.lang.Object newCredential, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+        clearGatewayUsernameCache(userName);
+        return super.doPreUpdateCredentialByAdmin(userName, newCredential, userStoreManager);
+    }
+
+    @java.lang.Override
+    public boolean doPreDeleteUserClaimValues(java.lang.String userName, java.lang.String[] claims, java.lang.String profileName, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+        clearGatewayUsernameCache(userName);
+        return super.doPreDeleteUserClaimValues(userName, claims, profileName, userStoreManager);
+    }
+
+    @java.lang.Override
+    public boolean doPreDeleteUserClaimValue(java.lang.String userName, java.lang.String claimURI, java.lang.String profileName, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+        clearGatewayUsernameCache(userName);
+        return super.doPreDeleteUserClaimValue(userName, claimURI, profileName, userStoreManager);
+    }
+
+    @java.lang.Override
+    public boolean doPreAddRole(java.lang.String roleName, java.lang.String[] userList, Permission[] permissions, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+        clearGatewayUsernameCache(userList);
+        return super.doPreAddRole(roleName, userList, permissions, userStoreManager);
+    }
+
+    @java.lang.Override
+    public boolean doPreAddInternalRole(java.lang.String roleName, java.lang.String[] userList, Permission[] permissions, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+        clearGatewayUsernameCache(userList);
+        return super.doPreAddInternalRole(roleName, userList, permissions, userStoreManager);
+    }
+
+    @java.lang.Override
+    public boolean doPreUpdateInternalRoleName(java.lang.String roleName, java.lang.String newRoleName, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+        clearGatewayUsernameCache((String[]) userStoreManager.getUserListOfRole(roleName));
+        return super.doPreUpdateInternalRoleName(roleName, newRoleName, userStoreManager);
+    }
+
+    @java.lang.Override
+    public boolean doPreDeleteInternalRole(java.lang.String roleName, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+        clearGatewayUsernameCache((String[]) userStoreManager.getUserListOfRole(roleName));
+        return super.doPreDeleteInternalRole(roleName, userStoreManager);
+    }
+
+    @java.lang.Override
+    public boolean doPreDeleteRole(java.lang.String roleName, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+        clearGatewayUsernameCache((String[]) userStoreManager.getUserListOfRole(roleName));
+        return super.doPreDeleteRole(roleName, userStoreManager);
+    }
+
+    @java.lang.Override
+    public boolean doPreUpdateRoleName(java.lang.String roleName, java.lang.String newRoleName, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+        clearGatewayUsernameCache((String[]) userStoreManager.getUserListOfRole(roleName));
+        return super.doPreUpdateRoleName(roleName, newRoleName, userStoreManager);
+    }
+
     /**
      * Deleting user from the identity database prerequisites. Remove pending approval requests for the user and remove
      * the gateway key cache.
      */
     @Override
     public boolean doPreDeleteUser(String username, UserStoreManager userStoreManager) {
-
+        clearGatewayUsernameCache(username);
         boolean isTenantFlowStarted = false;
         ApiMgtDAO apiMgtDAO = getDAOInstance();
         try {
@@ -123,6 +190,7 @@ public class KeyManagerUserOperationListener extends IdentityOathEventListener {
     @Override
     public boolean doPreUpdateRoleListOfUser(String username, String[] deletedRoles, String[] newRoles,
                                              UserStoreManager userStoreManager) {
+        clearGatewayUsernameCache(username);
         APIUtil.clearRoleCache(getUserName(username, userStoreManager));
         return !isEnable() || removeGatewayKeyCache(username, userStoreManager);
     }
@@ -184,6 +252,47 @@ public class KeyManagerUserOperationListener extends IdentityOathEventListener {
         }
 
         return true;
+    }
+
+    private void clearGatewayUsernameCache(String username) {
+        APIManagerConfiguration config = getApiManagerConfiguration();
+        Map<String, Environment> gatewayEnvs = config.getApiGatewayEnvironments();
+
+        for (Environment environment : gatewayEnvs.values()) {
+            if (log.isDebugEnabled()) {
+                log.debug("Going to remove tokens from the cache of the Gateway '" + environment.getName() + "'");
+            }
+            try {
+                APIAuthenticationAdminClient client = getApiAuthenticationAdminClient(environment);
+                client.invalidateCachedUsername(username);
+
+                log.debug("Removed cached usernames of the Gateway.");
+            } catch (AxisFault axisFault) {
+                //log and continue invalidating caches of other Gateways (if any).
+                log.error("Error occurred while invalidating the Gateway Username Cache of Gateway '" +
+                        environment.getName() + "'", axisFault);
+            }
+        }
+    }
+    private void clearGatewayUsernameCache(String[] username_list) {
+        APIManagerConfiguration config = getApiManagerConfiguration();
+        Map<String, Environment> gatewayEnvs = config.getApiGatewayEnvironments();
+
+        for (Environment environment : gatewayEnvs.values()) {
+            if (log.isDebugEnabled()) {
+                log.debug("Going to remove tokens from the cache of the Gateway '" + environment.getName() + "'");
+            }
+            try {
+                APIAuthenticationAdminClient client = getApiAuthenticationAdminClient(environment);
+                client.invalidateCachedUsernames(username_list);
+
+                log.debug("Removed cached usernames of the Gateway.");
+            } catch (AxisFault axisFault) {
+                //log and continue invalidating caches of other Gateways (if any).
+                log.error("Error occurred while invalidating the Gateway Username Cache of Gateway '" +
+                        environment.getName() + "'", axisFault);
+            }
+        }
     }
 
     protected APIAuthenticationAdminClient getApiAuthenticationAdminClient(Environment environment) throws AxisFault {

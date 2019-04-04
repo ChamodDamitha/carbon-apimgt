@@ -16,16 +16,12 @@
 
 package org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth;
 
-import org.apache.axis2.AxisFault;
-import org.apache.axis2.client.ServiceClient;
-import org.apache.axis2.context.ConfigurationContext;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHeaders;
 import org.apache.synapse.MessageContext;
 import org.apache.synapse.core.SynapseEnvironment;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
-import org.apache.synapse.core.axis2.Axis2Sender;
 import org.apache.ws.security.WSSecurityException;
 import org.apache.ws.security.util.Base64;
 import org.json.simple.JSONObject;
@@ -34,11 +30,8 @@ import org.json.simple.parser.ParseException;
 import org.wso2.carbon.apimgt.gateway.MethodStats;
 import org.wso2.carbon.apimgt.gateway.handlers.security.*;
 import org.wso2.carbon.apimgt.gateway.internal.ServiceReferenceHolder;
-import org.wso2.carbon.apimgt.hostobjects.internal.HostObjectComponent;
 import org.wso2.carbon.apimgt.impl.APIConstants;
 import org.wso2.carbon.apimgt.impl.APIManagerConfiguration;
-import org.wso2.carbon.um.ws.api.stub.RemoteUserStoreManagerServiceStub;
-import org.wso2.carbon.utils.CarbonUtils;
 
 import java.util.Map;
 
@@ -53,13 +46,10 @@ public class BasicAuthAuthenticator implements Authenticator {
     private static final Log log = LogFactory.getLog(BasicAuthAuthenticator.class);
 
     private String securityHeader = HttpHeaders.AUTHORIZATION;
-    private String defaultAPIHeader = "WSO2_AM_API_DEFAULT_VERSION";
     private String basicAuthKeyHeaderSegment = "Basic";
     private String authHeaderSplitter = ",";
     private String securityContextHeader;
     private boolean removeOAuthHeadersFromOutMessage = true;
-    private boolean removeDefaultAPIHeaderFromOutMessage = true;
-    private String clientDomainHeader = "referer";
     private String requestOrigin;
     private JSONObject resourceScopes;
     private BasicAuthCredentialValidator basicAuthCredentialValidator;
@@ -122,7 +112,7 @@ public class BasicAuthAuthenticator implements Authenticator {
                     try {
                         String[] tempAuthHeader = authHeader.split(authHeaderSplitter);
                         String remainingHeader = "";
-                        for (String h: tempAuthHeader) {
+                        for (String h : tempAuthHeader) {
                             if (h.trim().startsWith(basicAuthKeyHeaderSegment)) {
                                 authHeader = h.trim();
                             } else {
@@ -156,124 +146,39 @@ public class BasicAuthAuthenticator implements Authenticator {
             }
         }
 
-        boolean logged = false;
-        logged = basicAuthCredentialValidator.validate(username, password);
-//        if (!logged) {
-
-//            ConfigurationContext configurationContext = ServiceReferenceHolder.getInstance().getAxis2ConfigurationContext();
-//            APIManagerConfiguration config = HostObjectComponent.getAPIManagerConfiguration();
-//            String url = config.getFirstProperty(APIConstants.AUTH_MANAGER_URL);
-//            if (url == null) {
-//                throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, "API key manager URL unspecified");
-//            }
-//
-//            RemoteUserStoreManagerServiceStub remoteUserStoreManagerServiceStub;
-//            try {
-//                remoteUserStoreManagerServiceStub = new RemoteUserStoreManagerServiceStub(configurationContext, url +
-//                        "RemoteUserStoreManagerService");
-//            } catch (AxisFault axisFault) {
-//                throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, axisFault.getMessage());
-//            }
-//            ServiceClient svcClient = remoteUserStoreManagerServiceStub._getServiceClient();
-//            CarbonUtils.setBasicAccessSecurityHeaders(config.getFirstProperty(APIConstants.AUTH_MANAGER_USERNAME),
-//                    config.getFirstProperty(APIConstants.AUTH_MANAGER_PASSWORD), svcClient);
-
-//            try {
-//                logged = remoteUserStoreManagerServiceStub.authenticate(username, password);
-//            } catch (Exception e) {
-//                throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
-//            }
-//        }
-
+        boolean logged = basicAuthCredentialValidator.validate(username, password);
         if (!logged) {
-                throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
-                        "Authentication failed due to username & password mismatch");
-            } else { // username password matches
-                //scope validation
-                boolean scopesValid = basicAuthCredentialValidator.validateScopes(username, resourceScopes, synCtx);
+            throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
+                    "Authentication failed due to username & password mismatch");
+        } else { // username password matches
+            //scope validation
+            boolean scopesValid = basicAuthCredentialValidator.validateScopes(username, resourceScopes, synCtx);
 
-                if (scopesValid) {
-                    //Create a dummy AuthenticationContext object with hard coded values for
-                    // Tier and KeyType. This is because we cannot determine the Tier nor Key
-                    // Type without subscription information..
-                    AuthenticationContext authContext = new AuthenticationContext();
-                    authContext.setAuthenticated(true);
-                    authContext.setTier(APIConstants.UNAUTHENTICATED_TIER);
-                    authContext.setStopOnQuotaReach(true);//Since we don't have details on unauthenticated tier we setting stop on quota reach true
-                    //Requests are throttled by the ApiKey that is set here. In an unauthenticated scenario,
-                    //we will use the username for throttling.
-                    //Username is extracted from the request
-                    authContext.setApiKey(username);
-                    authContext.setKeyType(APIConstants.API_KEY_TYPE_PRODUCTION);
-                    authContext.setUsername(username);
-                    authContext.setCallerToken(null);
-                    authContext.setApplicationName(null);
-                    authContext.setApplicationId(username); //Set username as application ID in basic auth scenario
-                    authContext.setConsumerKey(null);
-                    APISecurityUtils.setAuthenticationContext(synCtx, authContext, securityContextHeader);
+            if (scopesValid) {
+                //Create a dummy AuthenticationContext object with hard coded values for
+                // Tier and KeyType. This is because we cannot determine the Tier nor Key
+                // Type without subscription information..
+                AuthenticationContext authContext = new AuthenticationContext();
+                authContext.setAuthenticated(true);
+                authContext.setTier(APIConstants.UNAUTHENTICATED_TIER);
+                authContext.setStopOnQuotaReach(true);//Since we don't have details on unauthenticated tier we setting stop on quota reach true
+                //Requests are throttled by the ApiKey that is set here. In an unauthenticated scenario,
+                //we will use the username for throttling.
+                //Username is extracted from the request
+                authContext.setApiKey(username);
+                authContext.setKeyType(APIConstants.API_KEY_TYPE_PRODUCTION);
+                authContext.setUsername(username);
+                authContext.setCallerToken(null);
+                authContext.setApplicationName(null);
+                authContext.setApplicationId(username); //Set username as application ID in basic auth scenario
+                authContext.setConsumerKey(null);
+                APISecurityUtils.setAuthenticationContext(synCtx, authContext, securityContextHeader);
 
-                    return true;
-                }
-//              Scope validation with user roles
-//                if (resourceScopes != null) {
-//                    String apiElectedResource = (String) synCtx.getProperty(APIConstants.API_ELECTED_RESOURCE);
-//                    String httpMethod = (String) axis2MessageContext.getProperty(APIConstants.DigestAuthConstants.HTTP_METHOD);
-//                    String resourceKey = apiElectedResource + ":" + httpMethod;
-//                    if (resourceScopes.containsKey(resourceKey)) {
-//                        String[] user_roles;
-//                        try {
-//                            user_roles = remoteUserStoreManagerServiceStub.getRoleListOfUser(username);
-//                        } catch (Exception e) {
-//                            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
-//                        }
-//                        JSONObject scope = (JSONObject) resourceScopes.get(resourceKey);
-//                        String allowed_roles = (String) scope.get("roles");
-//                        for (String role : user_roles) {
-//                            if (allowed_roles.contains(role)) {
-//                                return true;
-//                            }
-//                        }
-//                    } else {
-////                      No scopes for the requested resource
-//                        return true;
-//                    }
-//                } else {
-////                  No scopes for API
-//                    return true;
-//                }
-//                throw new APISecurityException(APISecurityConstants.INVALID_SCOPE, "Scope validation failed");
+                return true;
             }
-//        } catch (Exception e) {
-//            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
-//        }
+        }
         return false;
     }
-
-    /**
-     * Send unauthorized response
-     *
-     * @param axis2MessageContext
-     * @param messageContext
-     * @param status
-     */
-    private void sendUnauthorizedResponse(org.apache.axis2.context.MessageContext axis2MessageContext,
-                                          MessageContext messageContext, String status) {
-        axis2MessageContext.setProperty("HTTP_SC", status);
-        axis2MessageContext.setProperty("NO_ENTITY_BODY", new Boolean("true"));
-        messageContext.setProperty("RESPONSE", "true");
-        messageContext.setTo(null);
-        Axis2Sender.sendBack(messageContext);
-    }
-
-    private String removeLeadingAndTrailing(String base) {
-        String result = base;
-
-        if (base.startsWith("\"") || base.endsWith("\"")) {
-            result = base.replace("\"", "");
-        }
-        return result.trim();
-    }
-
     protected void initOAuthParams() {
         APIManagerConfiguration config = getApiManagerConfiguration();
         String value = config.getFirstProperty(APIConstants.REMOVE_OAUTH_HEADERS_FROM_MESSAGE);
@@ -294,36 +199,13 @@ public class BasicAuthAuthenticator implements Authenticator {
         return "Basic Auth realm=\"WSO2 API Manager\"";
     }
 
-    private String getClientDomain(MessageContext synCtx) {
-        String clientDomainHeaderValue = null;
-        Map headers = (Map) ((Axis2MessageContext) synCtx).getAxis2MessageContext().
-                getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
-        if (headers != null) {
-            clientDomainHeaderValue = (String) headers.get(clientDomainHeader);
-        }
-        return clientDomainHeaderValue;
-    }
-
     public String getRequestOrigin() {
         return requestOrigin;
     }
 
-    public String getSecurityHeader() {
-        return securityHeader;
+    public void setRequestOrigin(String requestOrigin) {
+        this.requestOrigin = requestOrigin;
     }
-
-    public void setSecurityHeader(String securityHeader) {
-        this.securityHeader = securityHeader;
-    }
-
-    public String getDefaultAPIHeader() {
-        return defaultAPIHeader;
-    }
-
-    public void setDefaultAPIHeader(String defaultAPIHeader) {
-        this.defaultAPIHeader = defaultAPIHeader;
-    }
-
 
     public String getSecurityContextHeader() {
         return securityContextHeader;
@@ -332,34 +214,5 @@ public class BasicAuthAuthenticator implements Authenticator {
     public void setSecurityContextHeader(String securityContextHeader) {
         this.securityContextHeader = securityContextHeader;
     }
-
-    public boolean isRemoveOAuthHeadersFromOutMessage() {
-        return removeOAuthHeadersFromOutMessage;
-    }
-
-    public void setRemoveOAuthHeadersFromOutMessage(boolean removeOAuthHeadersFromOutMessage) {
-        this.removeOAuthHeadersFromOutMessage = removeOAuthHeadersFromOutMessage;
-    }
-
-    public String getClientDomainHeader() {
-        return clientDomainHeader;
-    }
-
-    public void setClientDomainHeader(String clientDomainHeader) {
-        this.clientDomainHeader = clientDomainHeader;
-    }
-
-    public boolean isRemoveDefaultAPIHeaderFromOutMessage() {
-        return removeDefaultAPIHeaderFromOutMessage;
-    }
-
-    public void setRemoveDefaultAPIHeaderFromOutMessage(boolean removeDefaultAPIHeaderFromOutMessage) {
-        this.removeDefaultAPIHeaderFromOutMessage = removeDefaultAPIHeaderFromOutMessage;
-    }
-
-    public void setRequestOrigin(String requestOrigin) {
-        this.requestOrigin = requestOrigin;
-    }
-
 
 }
