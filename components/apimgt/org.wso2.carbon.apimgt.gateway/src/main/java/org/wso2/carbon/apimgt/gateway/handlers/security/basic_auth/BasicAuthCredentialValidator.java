@@ -46,6 +46,7 @@ public class BasicAuthCredentialValidator {
 
     private boolean gatewayKeyCacheEnabled;
     private static boolean gatewayUsernameCacheInit = false;
+    private static boolean gatewayInvalidUsernameCacheInit = false;
     private static boolean gatewayResourceCacheInit = false;
 
     protected Log log = LogFactory.getLog(getClass());
@@ -216,8 +217,8 @@ public class BasicAuthCredentialValidator {
         String apimGWCacheExpiry = getApiManagerConfiguration().
                 getFirstProperty(APIConstants.TOKEN_CACHE_EXPIRY);
 
-        if (!gatewayUsernameCacheInit) {
-            gatewayUsernameCacheInit = true;
+        if (!gatewayInvalidUsernameCacheInit) {
+            gatewayInvalidUsernameCacheInit = true;
             if (apimGWCacheExpiry != null) {
                 return getCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_INVALID_USERNAME_CACHE_NAME,
                         Long.parseLong(apimGWCacheExpiry), Long.parseLong(apimGWCacheExpiry));
