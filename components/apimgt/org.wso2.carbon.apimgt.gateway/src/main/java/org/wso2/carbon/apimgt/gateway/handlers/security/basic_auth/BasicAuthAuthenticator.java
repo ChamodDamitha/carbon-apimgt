@@ -74,14 +74,14 @@ public class BasicAuthAuthenticator implements Authenticator {
                 log.error(e);
             }
         }
+    }
+
+    public void init(SynapseEnvironment env) {
         try {
             this.basicAuthCredentialValidator = new BasicAuthCredentialValidator();
         } catch (APISecurityException e) {
             log.error(e);
         }
-    }
-
-    public void init(SynapseEnvironment env) {
         initOAuthParams();
     }
 
