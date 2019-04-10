@@ -198,7 +198,6 @@ public class BasicAuthCredentialValidator {
                 long defaultCacheTimeout =
                         getDefaultCacheTimeout();
                 return getCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_USERNAME_CACHE_NAME, defaultCacheTimeout, defaultCacheTimeout);
-
             }
         }
         return getCacheFromCacheManager(APIConstants.GATEWAY_USERNAME_CACHE_NAME);
