@@ -21,6 +21,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.MessageContext;
 import org.apache.synapse.core.SynapseEnvironment;
+import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.wso2.carbon.apimgt.gateway.handlers.security.APISecurityConstants;
 import org.wso2.carbon.apimgt.gateway.handlers.security.APISecurityException;
 import org.wso2.carbon.apimgt.gateway.handlers.security.Authenticator;
@@ -133,15 +134,52 @@ public class MultiAuthenticator implements Authenticator {
         APISecurityException apiSecurityException = null;
         int apiSecurityErrorCode = 0;
 
-        for (int index = 0; !isAuthenticated && index < authenticatorList.size(); index++) {
+        int i = 0;
+        Authenticator firstAuthenticator = authenticatorList.get(0);
+
+        if (firstAuthenticator instanceof MutualSSLAuthenticator) {
+            try {
+                boolean isSSLAuthenticated = firstAuthenticator.authenticate(synCtx);
+                if (isSSLAuthenticated) {
+                    if (authenticatorList.size() > 1) {
+                        // To authenticate using next authenticator onwards
+                        i = 1;
+                    } else {
+                        isAuthenticated = true;
+                        // stop authenticating using other authenticators
+                        i = authenticatorList.size();
+                    }
+                } else {
+                    // stop authenticating using other authenticators
+                    i = authenticatorList.size();
+                }
+            } catch (APISecurityException ex) {
+                if (StringUtils.isNotEmpty(errorMessage)) {
+                    errorMessage += " and ";
+                }
+                errorMessage += ex.getMessage();
+
+                // stop authenticating using other authenticators
+                i = authenticatorList.size();
+            }
+        }
+
+        // if i = 0 , not Mutual SSL protected. Therefore, start from first authenticator onwards to authenticate
+        for (int index = i; !isAuthenticated && index < authenticatorList.size(); index++) {
             Authenticator authenticator = authenticatorList.get(index);
             try {
                 isAuthenticated = authenticator.authenticate(synCtx);
             } catch (APISecurityException ex) {
                 // This is to maintain the backward compatibility between error codes when using OAuth2Authenticator.
-                if (authenticator instanceof OAuthAuthenticator) {
+                if ((authenticator instanceof OAuthAuthenticator) || (authenticator instanceof BasicAuthAuthenticator)) {
                     if (ex.getErrorCode() == APISecurityConstants.API_AUTH_MISSING_CREDENTIALS) {
                         apiSecurityErrorCode = APISecurityConstants.API_AUTH_MISSING_CREDENTIALS;
+                    } else if (ex.getErrorCode() == APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS) {
+                        if (apiSecurityErrorCode == APISecurityConstants.API_AUTH_MISSING_CREDENTIALS) {
+                            apiSecurityErrorCode = APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_AND_OAUTH_CREDENTIALS;
+                        } else {
+                            apiSecurityErrorCode = APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS;
+                        }
                     } else {
                         apiSecurityException = ex;
                     }
@@ -152,6 +190,7 @@ public class MultiAuthenticator implements Authenticator {
                 errorMessage += ex.getMessage();
             }
         }
+
         if (!isAuthenticated) {
             if (apiSecurityException != null) {
                 throw apiSecurityException;

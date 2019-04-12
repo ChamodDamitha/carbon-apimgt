@@ -37,20 +37,18 @@ import java.util.Map;
 
 /**
  * An API consumer authenticator which authenticates user requests using
- * the OAuth protocol. This implementation uses some default token/delimiter
- * values to parse OAuth headers, but if needed these settings can be overridden
- * through the APIManagerConfiguration.
+ * Basic Authentication which uses username and password for authentication.
  */
 public class BasicAuthAuthenticator implements Authenticator {
 
     private static final Log log = LogFactory.getLog(BasicAuthAuthenticator.class);
+    private final String basicAuthKeyHeaderSegment = "Basic";
+    private final String authHeaderSplitter = ",";
 
     private String securityHeader = HttpHeaders.AUTHORIZATION;
-    private String basicAuthKeyHeaderSegment = "Basic";
-    private String authHeaderSplitter = ",";
     private String securityContextHeader;
-    private boolean removeOAuthHeadersFromOutMessage = true;
     private String requestOrigin;
+    private boolean removeOAuthHeadersFromOutMessage = true;
     private JSONObject resourceScopes;
     private BasicAuthCredentialValidator basicAuthCredentialValidator;
 
@@ -96,36 +94,32 @@ public class BasicAuthAuthenticator implements Authenticator {
         String username = null;
         String password = null;
 
-        org.apache.axis2.context.MessageContext axis2MessageContext =
-                ((Axis2MessageContext) synCtx).getAxis2MessageContext();
-        Object headers = axis2MessageContext
-                .getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
-        if (headers != null && headers instanceof Map) {
-            Map headersMap = (Map) headers;
-            String authHeader = (String) headersMap.get(securityHeader);
+        Map headers = (Map) ((Axis2MessageContext) synCtx).getAxis2MessageContext().
+                getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
+        if (headers != null) {
+            String authHeader = (String) headers.get(securityHeader);
             if (authHeader == null) {
-                headersMap.clear();
-                throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_CREDENTIALS,
-                        "Basic Auth Header not found");
+                throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
+                        "Basic Auth credentials not found");
             } else {
                 if (authHeader.contains(basicAuthKeyHeaderSegment)) {
+                    String[] tempAuthHeader = authHeader.split(authHeaderSplitter);
+                    String remainingHeader = "";
+                    for (String h : tempAuthHeader) {
+                        if (h.trim().startsWith(basicAuthKeyHeaderSegment)) {
+                            authHeader = h.trim();
+                        } else {
+                            remainingHeader += h + authHeaderSplitter;
+                        }
+                    }
+                    if (removeOAuthHeadersFromOutMessage) {
+                        if (tempAuthHeader.length > 1) {
+                            headers.put(securityHeader, remainingHeader);
+                        } else {
+                            headers.remove(securityHeader);
+                        }
+                    }
                     try {
-                        String[] tempAuthHeader = authHeader.split(authHeaderSplitter);
-                        String remainingHeader = "";
-                        for (String h : tempAuthHeader) {
-                            if (h.trim().startsWith(basicAuthKeyHeaderSegment)) {
-                                authHeader = h.trim();
-                            } else {
-                                remainingHeader += h + authHeaderSplitter;
-                            }
-                        }
-                        if (removeOAuthHeadersFromOutMessage) {
-                            if (tempAuthHeader.length > 1) {
-                                headersMap.put(securityHeader, remainingHeader);
-                            } else {
-                                headersMap.remove(securityHeader);
-                            }
-                        }
                         String authKey = new String(Base64.decode(authHeader.substring(6).trim())); // len(Basic) = 5
                         if (authKey.contains(":")) {
                             String credentials[] = authKey.split(":");
@@ -140,8 +134,8 @@ public class BasicAuthAuthenticator implements Authenticator {
                                 "Invalid authorization key");
                     }
                 } else {
-                    throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_CREDENTIALS,
-                            "Basic Auth Header not found");
+                    throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
+                            "Basic Auth credentials not found");
                 }
             }
         }
@@ -179,13 +173,10 @@ public class BasicAuthAuthenticator implements Authenticator {
         }
         return false;
     }
+
     protected void initOAuthParams() {
         APIManagerConfiguration config = getApiManagerConfiguration();
-        String value = config.getFirstProperty(APIConstants.REMOVE_OAUTH_HEADERS_FROM_MESSAGE);
-        if (value != null) {
-            removeOAuthHeadersFromOutMessage = Boolean.parseBoolean(value);
-        }
-        value = config.getFirstProperty(APIConstants.JWT_HEADER);
+        String value = config.getFirstProperty(APIConstants.JWT_HEADER);
         if (value != null) {
             setSecurityContextHeader(value);
         }
