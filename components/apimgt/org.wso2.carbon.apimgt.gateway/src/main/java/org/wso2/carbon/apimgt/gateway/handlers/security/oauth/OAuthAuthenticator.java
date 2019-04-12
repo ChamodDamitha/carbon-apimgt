@@ -119,6 +119,7 @@ public class OAuthAuthenticator implements Authenticator {
 //            }
             if (remainingAuthHeader != "") {
                 headers.put(securityHeader, remainingAuthHeader);
+                remainingAuthHeader = "";
             } else {
                 headers.remove(securityHeader);
             }
