@@ -113,10 +113,7 @@ public class OAuthAuthenticator implements Authenticator {
         }
 
         if(removeOAuthHeadersFromOutMessage){
-//            headers.remove(securityHeader);
-//            if(log.isDebugEnabled()){
-//                log.debug("Removing Authorization header from headers");
-//            }
+            //Remove authorization headers sent for authentication at the gateway and pass others to the backend
             if (remainingAuthHeader != "") {
                 headers.put(securityHeader, remainingAuthHeader);
                 remainingAuthHeader = "";
@@ -124,7 +121,7 @@ public class OAuthAuthenticator implements Authenticator {
                 headers.remove(securityHeader);
             }
             if(log.isDebugEnabled()){
-                log.debug("Removing Authorization header from headers");
+                log.debug("Updating/Removing Authorization header from headers");
             }
         }
         if(removeDefaultAPIHeaderFromOutMessage){
@@ -343,7 +340,10 @@ public class OAuthAuthenticator implements Authenticator {
                     }
                 }
                 if (!consumerkeyFound) {
-                    remainingAuthHeader += headers[i] + oauthHeaderSplitter;
+                    remainingAuthHeader += headers[i];
+                    if (i < headers.length - 1) {
+                        remainingAuthHeader += oauthHeaderSplitter;
+                    }
                 } else {
                     consumerkeyFound = false;
                 }
