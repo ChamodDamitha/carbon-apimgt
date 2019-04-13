@@ -43,6 +43,7 @@ public class BasicAuthAuthenticator implements Authenticator {
 
     private static final Log log = LogFactory.getLog(BasicAuthAuthenticator.class);
     private final String basicAuthKeyHeaderSegment = "Basic";
+    private final String oauthKeyHeaderSegment = "Bearer";
     private final String authHeaderSplitter = ",";
 
     private String securityHeader = HttpHeaders.AUTHORIZATION;
@@ -104,21 +105,28 @@ public class BasicAuthAuthenticator implements Authenticator {
             } else {
                 if (authHeader.contains(basicAuthKeyHeaderSegment)) {
                     String[] tempAuthHeader = authHeader.split(authHeaderSplitter);
-                    String remainingHeader = "";
-                    for (String h : tempAuthHeader) {
+                    String remainingAuthHeader = "";
+                    for (int i = 0; i < tempAuthHeader.length; i++) {
+                        String h = tempAuthHeader[i];
                         if (h.trim().startsWith(basicAuthKeyHeaderSegment)) {
                             authHeader = h.trim();
+                        } else if (h.trim().startsWith(oauthKeyHeaderSegment) && removeOAuthHeadersFromOutMessage) {
+                            //If oauth header is configured to be removed at the gateway, remove it
+                            continue;
                         } else {
-                            remainingHeader += h + authHeaderSplitter;
+                            remainingAuthHeader += h;
+                            if (i < tempAuthHeader.length - 1) {
+                                remainingAuthHeader += authHeaderSplitter;
+                            }
                         }
                     }
-                    if (removeOAuthHeadersFromOutMessage) {
-                        if (tempAuthHeader.length > 1) {
-                            headers.put(securityHeader, remainingHeader);
-                        } else {
-                            headers.remove(securityHeader);
-                        }
+                    //Remove authorization headers sent for authentication at the gateway and pass others to the backend
+                    if (remainingAuthHeader != "") {
+                        headers.put(securityHeader, remainingAuthHeader);
+                    } else {
+                        headers.remove(securityHeader);
                     }
+
                     try {
                         String authKey = new String(Base64.decode(authHeader.substring(6).trim())); // len(Basic) = 5
                         if (authKey.contains(":")) {

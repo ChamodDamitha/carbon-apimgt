@@ -42,8 +42,14 @@ public class MultiAuthenticator implements Authenticator {
     private static final Log log = LogFactory.getLog(MultiAuthenticator.class);
     private volatile List<Authenticator> authenticatorList;
     private String apiSecurity;
+    private String authorizationHeader;
+    private boolean removeOAuthHeadersFromOutMessage;
     private Map<String, Object> parameters;
     private static List<SecurityProtocol> supportedSecurityProtocols;
+
+    private final String basicAuthKeyHeaderSegment = "Basic";
+    private final String oauthKeyHeaderSegment = "Bearer";
+    private final String authHeaderSplitter = ",";
 
     static {
         supportedSecurityProtocols = new ArrayList<>();
@@ -70,6 +76,8 @@ public class MultiAuthenticator implements Authenticator {
      */
     public MultiAuthenticator(Map<String, Object> parameters) {
         apiSecurity = (String) parameters.get(APIConstants.API_SECURITY);
+        authorizationHeader = (String) parameters.get(APIConstants.AUTHORIZATION_HEADER);
+        removeOAuthHeadersFromOutMessage = (Boolean) parameters.get(APIConstants.REMOVE_OAUTH_HEADERS_FROM_MESSAGE);
         this.parameters = parameters;
     }
 
@@ -200,7 +208,43 @@ public class MultiAuthenticator implements Authenticator {
                 throw new APISecurityException(APISecurityConstants.MULTI_AUTHENTICATION_FAILURE, errorMessage);
             }
         }
+        //Update auth header
+        updateAuthHeader(synCtx);
+
         return isAuthenticated;
+    }
+
+    private void updateAuthHeader(MessageContext synCtx) {
+        Map headers = (Map) ((Axis2MessageContext) synCtx).getAxis2MessageContext().
+                getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
+        if (headers != null) {
+            String authHeader = (String) headers.get(authorizationHeader);
+            if (authHeader != null) {
+                String[] tempAuthHeader = authHeader.split(authHeaderSplitter);
+                String remainingAuthHeader = "";
+                for (int i = 0; i < tempAuthHeader.length; i++) {
+                    String h = tempAuthHeader[i];
+                    if (h.trim().startsWith(basicAuthKeyHeaderSegment) &&
+                            apiSecurity.contains(APIConstants.API_SECURITY_BASIC_AUTH)) {
+                        //If basic auth header is sent for the basic auth validation at the gateway, remove it
+                        continue;
+                    } else if (h.trim().startsWith(oauthKeyHeaderSegment) && removeOAuthHeadersFromOutMessage) {
+                        //If oauth header is configured to be removed at the gateway, remove it
+                        continue;
+                    }
+                    remainingAuthHeader += h;
+                    if (i < tempAuthHeader.length - 1) {
+                        remainingAuthHeader += authHeaderSplitter;
+                    }
+                }
+                //Remove authorization headers sent for authentication at the gateway and pass others to the backend
+                if (remainingAuthHeader != "") {
+                    headers.put(authorizationHeader, remainingAuthHeader);
+                } else {
+                    headers.remove(authorizationHeader);
+                }
+            }
+        }
     }
 
     @Override
