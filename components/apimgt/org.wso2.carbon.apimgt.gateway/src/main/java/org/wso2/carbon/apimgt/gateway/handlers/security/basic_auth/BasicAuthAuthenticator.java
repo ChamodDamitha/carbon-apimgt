@@ -48,7 +48,6 @@ public class BasicAuthAuthenticator implements Authenticator {
     private final String authHeaderSplitter = ",";
 
     private String securityHeader = HttpHeaders.AUTHORIZATION;
-    private String securityContextHeader;
     private String requestOrigin;
     private boolean removeOAuthHeadersFromOutMessage = true;
     private JSONObject resourceScopes;
@@ -82,7 +81,6 @@ public class BasicAuthAuthenticator implements Authenticator {
         } catch (APISecurityException e) {
             log.error(e);
         }
-        initOAuthParams();
     }
 
     @java.lang.Override
@@ -178,24 +176,12 @@ public class BasicAuthAuthenticator implements Authenticator {
                 authContext.setApplicationName(null);
                 authContext.setApplicationId(username); //Set username as application ID in basic auth scenario
                 authContext.setConsumerKey(null);
-                APISecurityUtils.setAuthenticationContext(synCtx, authContext, securityContextHeader);
+                APISecurityUtils.setAuthenticationContext(synCtx, authContext, null);
 
                 return true;
             }
         }
         return false;
-    }
-
-    protected void initOAuthParams() {
-        APIManagerConfiguration config = getApiManagerConfiguration();
-        String value = config.getFirstProperty(APIConstants.JWT_HEADER);
-        if (value != null) {
-            setSecurityContextHeader(value);
-        }
-    }
-
-    protected APIManagerConfiguration getApiManagerConfiguration() {
-        return ServiceReferenceHolder.getInstance().getAPIManagerConfiguration();
     }
 
     public String getChallengeString() {
@@ -208,14 +194,6 @@ public class BasicAuthAuthenticator implements Authenticator {
 
     public void setRequestOrigin(String requestOrigin) {
         this.requestOrigin = requestOrigin;
-    }
-
-    public String getSecurityContextHeader() {
-        return securityContextHeader;
-    }
-
-    public void setSecurityContextHeader(String securityContextHeader) {
-        this.securityContextHeader = securityContextHeader;
     }
 
 }
