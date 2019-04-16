@@ -32,6 +32,7 @@ import org.wso2.carbon.apimgt.gateway.handlers.security.*;
 import org.wso2.carbon.apimgt.gateway.internal.ServiceReferenceHolder;
 import org.wso2.carbon.apimgt.impl.APIConstants;
 import org.wso2.carbon.apimgt.impl.APIManagerConfiguration;
+import org.wso2.carbon.apimgt.impl.dto.VerbInfoDTO;
 
 import java.util.Map;
 
@@ -164,9 +165,12 @@ public class BasicAuthAuthenticator implements Authenticator {
                 authContext.setAuthenticated(true);
                 authContext.setTier(APIConstants.UNAUTHENTICATED_TIER);
                 authContext.setStopOnQuotaReach(true);//Since we don't have details on unauthenticated tier we setting stop on quota reach true
-                //Requests are throttled by the ApiKey that is set here. In an unauthenticated scenario,
-                //we will use the username for throttling.
-                //Username is extracted from the request
+                //Resource level throttling is not considered, hence assigning the unlimited tier for that
+                VerbInfoDTO verbInfoDTO = new VerbInfoDTO();
+                verbInfoDTO.setThrottling(APIConstants.UNLIMITED_TIER);
+                synCtx.setProperty(APIConstants.VERB_INFO_DTO, verbInfoDTO);
+
+                //In basic authentication scenario, we will use the username for throttling.
                 authContext.setApiKey(username);
                 authContext.setKeyType(APIConstants.API_KEY_TYPE_PRODUCTION);
                 authContext.setUsername(username);
