@@ -24,6 +24,7 @@ import org.apache.axis2.engine.AxisConfiguration;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.MessageContext;
+import org.apache.synapse.core.SynapseEnvironment;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.json.simple.JSONObject;
 import org.wso2.carbon.apimgt.gateway.handlers.security.APISecurityConstants;
@@ -52,7 +53,11 @@ public class BasicAuthCredentialValidator {
     protected Log log = LogFactory.getLog(getClass());
     private RemoteUserStoreManagerServiceStub remoteUserStoreManagerServiceStub;
 
-    public BasicAuthCredentialValidator() throws APISecurityException {
+    public BasicAuthCredentialValidator() {
+
+    }
+
+    public BasicAuthCredentialValidator(SynapseEnvironment env) throws APISecurityException {
         this.gatewayKeyCacheEnabled = isGatewayTokenCacheEnabled();
         this.getGatewayUsernameCache();
 

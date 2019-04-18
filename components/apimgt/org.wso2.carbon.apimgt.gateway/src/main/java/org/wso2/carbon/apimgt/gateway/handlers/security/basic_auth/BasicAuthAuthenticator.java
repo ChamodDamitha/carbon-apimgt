@@ -53,6 +53,10 @@ public class BasicAuthAuthenticator implements Authenticator {
     private JSONObject resourceScopes;
     private BasicAuthCredentialValidator basicAuthCredentialValidator;
 
+    public void setBasicAuthCredentialValidator(BasicAuthCredentialValidator basicAuthCredentialValidator) {
+        this.basicAuthCredentialValidator = basicAuthCredentialValidator;
+    }
+
     public BasicAuthAuthenticator() {
     }
 
@@ -77,7 +81,7 @@ public class BasicAuthAuthenticator implements Authenticator {
 
     public void init(SynapseEnvironment env) {
         try {
-            this.basicAuthCredentialValidator = new BasicAuthCredentialValidator();
+            this.basicAuthCredentialValidator = new BasicAuthCredentialValidator(env);
         } catch (APISecurityException e) {
             log.error(e);
         }
