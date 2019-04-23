@@ -81,6 +81,10 @@ public class MultiAuthenticator implements Authenticator {
         this.parameters = parameters;
     }
 
+    protected void setAuthenticatorList(List<Authenticator> authenticatorList) {
+        this.authenticatorList = authenticatorList;
+    }
+
     @Override
     public void init(SynapseEnvironment env) {
         if (authenticatorList == null || authenticatorList.size() == 0) {
