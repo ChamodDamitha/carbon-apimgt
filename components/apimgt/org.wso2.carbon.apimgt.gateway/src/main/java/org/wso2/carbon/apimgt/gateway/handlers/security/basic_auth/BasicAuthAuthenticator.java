@@ -94,62 +94,13 @@ public class BasicAuthAuthenticator implements Authenticator {
 
     @MethodStats
     public boolean authenticate(MessageContext synCtx) throws APISecurityException {
-        log.info("Basic Authentication initialized");
-        String username = null;
-        String password = null;
-
-        Map headers = (Map) ((Axis2MessageContext) synCtx).getAxis2MessageContext().
-                getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
-        if (headers != null) {
-            String authHeader = (String) headers.get(securityHeader);
-            if (authHeader == null) {
-                throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
-                        "Basic Auth credentials not found");
-            } else {
-                if (authHeader.contains(basicAuthKeyHeaderSegment)) {
-                    String[] tempAuthHeader = authHeader.split(authHeaderSplitter);
-                    String remainingAuthHeader = "";
-                    for (int i = 0; i < tempAuthHeader.length; i++) {
-                        String h = tempAuthHeader[i];
-                        if (h.trim().startsWith(basicAuthKeyHeaderSegment)) {
-                            authHeader = h.trim();
-                        } else if (h.trim().startsWith(oauthKeyHeaderSegment) && removeOAuthHeadersFromOutMessage) {
-                            //If oauth header is configured to be removed at the gateway, remove it
-                            continue;
-                        } else {
-                            remainingAuthHeader += h;
-                            if (i < tempAuthHeader.length - 1) {
-                                remainingAuthHeader += authHeaderSplitter;
-                            }
-                        }
-                    }
-                    //Remove authorization headers sent for authentication at the gateway and pass others to the backend
-                    if (remainingAuthHeader != "") {
-                        headers.put(securityHeader, remainingAuthHeader);
-                    } else {
-                        headers.remove(securityHeader);
-                    }
-
-                    try {
-                        String authKey = new String(Base64.decode(authHeader.substring(6).trim())); // len(Basic) = 5
-                        if (authKey.contains(":")) {
-                            String credentials[] = authKey.split(":");
-                            username = credentials[0];
-                            password = credentials[1];
-                        } else {
-                            throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
-                                    "Invalid authorization key");
-                        }
-                    } catch (WSSecurityException e) {
-                        throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
-                                "Invalid authorization key");
-                    }
-                } else {
-                    throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
-                            "Basic Auth credentials not found");
-                }
-            }
+        if (log.isDebugEnabled()) {
+            log.info("Basic Authentication initialized");
         }
+
+        String[] credentials = extractBasicAuthCredentials(synCtx);
+        String username = credentials[0];
+        String password = credentials[1];
 
         boolean logged = basicAuthCredentialValidator.validate(username, password);
         if (!logged) {
@@ -186,6 +137,62 @@ public class BasicAuthAuthenticator implements Authenticator {
             }
         }
         return false;
+    }
+
+    protected String[] extractBasicAuthCredentials(MessageContext synCtx) throws APISecurityException {
+        Map headers = (Map) ((Axis2MessageContext) synCtx).getAxis2MessageContext().
+                getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
+        if (headers != null) {
+            String authHeader = (String) headers.get(securityHeader);
+            if (authHeader == null) {
+                throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
+                        "Basic Auth credentials not found");
+            } else {
+                if (authHeader.contains(basicAuthKeyHeaderSegment)) {
+                    String[] tempAuthHeader = authHeader.split(authHeaderSplitter);
+                    String remainingAuthHeader = "";
+                    for (int i = 0; i < tempAuthHeader.length; i++) {
+                        String h = tempAuthHeader[i];
+                        if (h.trim().startsWith(basicAuthKeyHeaderSegment)) {
+                            authHeader = h.trim();
+                        } else if (h.trim().startsWith(oauthKeyHeaderSegment) && removeOAuthHeadersFromOutMessage) {
+                            //If oauth header is configured to be removed at the gateway, remove it
+                            continue;
+                        } else {
+                            remainingAuthHeader += h;
+                            if (i < tempAuthHeader.length - 1) {
+                                remainingAuthHeader += authHeaderSplitter;
+                            }
+                        }
+                    }
+                    //Remove authorization headers sent for authentication at the gateway and pass others to the backend
+                    if (remainingAuthHeader != "") {
+                        headers.put(securityHeader, remainingAuthHeader);
+                    } else {
+                        headers.remove(securityHeader);
+                    }
+
+                    try {
+                        String authKey = new String(Base64.decode(authHeader.substring(6).trim())); // len(Basic) = 5
+                        if (authKey.contains(":")) {
+                            String credentials[] = authKey.split(":");
+                            return credentials;
+                        } else {
+                            throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
+                                    "Invalid authorization key");
+                        }
+                    } catch (WSSecurityException e) {
+                        throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
+                                "Invalid authorization key");
+                    }
+                } else {
+                    throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
+                            "Basic Auth credentials not found");
+                }
+            }
+        }
+        throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
+                "Basic Auth credentials not found");
     }
 
     public String getChallengeString() {
