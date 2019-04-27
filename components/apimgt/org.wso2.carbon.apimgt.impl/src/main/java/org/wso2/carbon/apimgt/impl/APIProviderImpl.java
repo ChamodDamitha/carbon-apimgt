@@ -1831,6 +1831,7 @@ class APIProviderImpl extends AbstractAPIManager implements APIProvider {
             String[] apiSecurityLevels = apiSecurity.split(",");
             boolean isOauth2 = false;
             boolean isMutualSSL = false;
+            boolean isBasicAuth = false;
             for (String apiSecurityLevel : apiSecurityLevels) {
                 if (apiSecurityLevel.trim().equalsIgnoreCase(APIConstants.DEFAULT_API_SECURITY_OAUTH2)) {
                     isOauth2 = true;
@@ -1838,12 +1839,24 @@ class APIProviderImpl extends AbstractAPIManager implements APIProvider {
                 if (apiSecurityLevel.trim().equalsIgnoreCase(APIConstants.API_SECURITY_MUTUAL_SSL)) {
                     isMutualSSL = true;
                 }
+                if (apiSecurityLevel.trim().equalsIgnoreCase(APIConstants.API_SECURITY_BASIC_AUTH)) {
+                    isBasicAuth = true;
+                }
             }
             apiSecurity = APIConstants.DEFAULT_API_SECURITY_OAUTH2;
-            if (isOauth2 && isMutualSSL) {
+            if (isOauth2 && isMutualSSL && isBasicAuth) {
+                apiSecurity = APIConstants.DEFAULT_API_SECURITY_OAUTH2 + "," + APIConstants.API_SECURITY_MUTUAL_SSL
+                        + "," + APIConstants.API_SECURITY_BASIC_AUTH;
+            } else if (isOauth2 && isMutualSSL) {
                 apiSecurity = APIConstants.DEFAULT_API_SECURITY_OAUTH2 + "," + APIConstants.API_SECURITY_MUTUAL_SSL;
+            }  else if (isBasicAuth && isMutualSSL) {
+                apiSecurity = APIConstants.API_SECURITY_BASIC_AUTH + "," + APIConstants.API_SECURITY_MUTUAL_SSL;
+            }  else if (isOauth2 && isBasicAuth) {
+                apiSecurity = APIConstants.DEFAULT_API_SECURITY_OAUTH2 + "," + APIConstants.API_SECURITY_BASIC_AUTH;
             } else if (isMutualSSL) {
                 apiSecurity = APIConstants.API_SECURITY_MUTUAL_SSL;
+            } else if (isBasicAuth) {
+                apiSecurity = APIConstants.API_SECURITY_BASIC_AUTH;
             }
         }
         if (log.isDebugEnabled()) {
