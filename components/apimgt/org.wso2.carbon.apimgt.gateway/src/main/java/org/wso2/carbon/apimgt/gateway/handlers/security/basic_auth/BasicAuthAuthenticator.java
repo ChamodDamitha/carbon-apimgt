@@ -16,6 +16,8 @@
 
 package org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth;
 
+import io.swagger.models.Swagger;
+import io.swagger.parser.SwaggerParser;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHeaders;
@@ -33,6 +35,7 @@ import org.wso2.carbon.apimgt.gateway.internal.ServiceReferenceHolder;
 import org.wso2.carbon.apimgt.impl.APIConstants;
 import org.wso2.carbon.apimgt.impl.APIManagerConfiguration;
 import org.wso2.carbon.apimgt.impl.dto.VerbInfoDTO;
+import org.apache.synapse.config.Entry;
 
 import java.util.Map;
 
@@ -52,6 +55,8 @@ public class BasicAuthAuthenticator implements Authenticator {
     private boolean removeOAuthHeadersFromOutMessage = true;
     private JSONObject resourceScopes;
     private BasicAuthCredentialValidator basicAuthCredentialValidator;
+    private String apiId;
+    private Swagger swagger = null;
 
     public void setBasicAuthCredentialValidator(BasicAuthCredentialValidator basicAuthCredentialValidator) {
         this.basicAuthCredentialValidator = basicAuthCredentialValidator;
@@ -60,23 +65,10 @@ public class BasicAuthAuthenticator implements Authenticator {
     public BasicAuthAuthenticator() {
     }
 
-    public BasicAuthAuthenticator(String authorizationHeader, boolean removeOAuthHeader, String resourceScopes) {
+    public BasicAuthAuthenticator(String authorizationHeader, boolean removeOAuthHeader, String apiId) {
         this.securityHeader = authorizationHeader;
         this.removeOAuthHeadersFromOutMessage = removeOAuthHeader;
-
-        if (resourceScopes != null) {
-            try {
-                String resourceScopeString = new String(Base64.decode(resourceScopes));
-                JSONParser parser = new JSONParser();
-                try {
-                    this.resourceScopes = (JSONObject) parser.parse(resourceScopeString);
-                } catch (ParseException e) {
-                    log.error(e);
-                }
-            } catch (WSSecurityException e) {
-                log.error(e);
-            }
-        }
+        this.apiId = apiId;
     }
 
     public void init(SynapseEnvironment env) {
@@ -98,6 +90,14 @@ public class BasicAuthAuthenticator implements Authenticator {
             log.info("Basic Authentication initialized");
         }
 
+        if (swagger == null && apiId != null) {
+            Entry localEntryObj = (Entry) synCtx.getConfiguration().getLocalRegistry().get(apiId);
+            if (localEntryObj != null) {
+                SwaggerParser parser = new SwaggerParser();
+                swagger = parser.parse(localEntryObj.getValue().toString());
+            }
+        }
+
         String[] credentials = extractBasicAuthCredentials(synCtx);
         String username = credentials[0];
         String password = credentials[1];
@@ -108,7 +108,7 @@ public class BasicAuthAuthenticator implements Authenticator {
                     "Authentication failed due to username & password mismatch");
         } else { // username password matches
             //scope validation
-            boolean scopesValid = basicAuthCredentialValidator.validateScopes(username, resourceScopes, synCtx);
+            boolean scopesValid = basicAuthCredentialValidator.validateScopes(username, swagger, synCtx);
 
             if (scopesValid) {
                 //Create a dummy AuthenticationContext object with hard coded values for

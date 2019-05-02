@@ -18,7 +18,6 @@
 
 package org.wso2.carbon.apimgt.impl;
 
-import com.google.gson.Gson;
 import org.apache.axiom.om.OMAbstractFactory;
 import org.apache.axiom.om.OMElement;
 import org.apache.axiom.om.OMException;
@@ -35,8 +34,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.solr.client.solrj.util.ClientUtils;
-import org.apache.ws.security.util.Base64;
-import org.json.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -2053,29 +2050,7 @@ class APIProviderImpl extends AbstractAPIManager implements APIProvider {
                         APIConstants.REMOVE_OAUTH_HEADER_FROM_OUT_MESSAGE_DEFAULT);
             }
 
-            JSONObject jsonObject = new JSONObject();
-            for (URITemplate ut : api.getUriTemplates()) {
-                Iterator<String> itr = ut.getHttpVerbs().iterator();
-                int i = 0;
-                while (itr.hasNext()) {
-                    Scope s = ut.getScopes().get(i);
-                    String httpMethod = itr.next();
-                    if (s != null) {
-                        JSONObject scopeObj = new JSONObject();
-                        scopeObj.put("key", s.getKey());
-                        scopeObj.put("roles", s.getRoles());
-                        jsonObject.put(ut.getUriTemplate() + ":" + httpMethod, scopeObj);
-                    }
-                    i++;
-                }
-            }
-            if (!jsonObject.isEmpty()) {
-                try {
-                    authProperties.put("resourceScopes", Base64.encode(jsonObject.toString().getBytes("utf-8")));
-                } catch (java.io.UnsupportedEncodingException e) {
-                    log.error(e);
-                }
-            }
+            authProperties.put("apiId", api.getId().toString());
 
             vtb.addHandler("org.wso2.carbon.apimgt.gateway.handlers.security.APIAuthenticationHandler",
                     authProperties);

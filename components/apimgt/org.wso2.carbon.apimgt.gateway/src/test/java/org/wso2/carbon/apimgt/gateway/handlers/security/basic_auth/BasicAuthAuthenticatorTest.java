@@ -17,10 +17,10 @@
 package org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth;
 
 
+import io.swagger.models.Swagger;
 import org.apache.synapse.MessageContext;
 import org.apache.synapse.core.SynapseEnvironment;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
-import org.json.simple.JSONObject;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -57,7 +57,7 @@ public class BasicAuthAuthenticatorTest {
             }
 
             @Override
-            public boolean validateScopes(String username, JSONObject resourceScopes, MessageContext synCtx) throws APISecurityException {
+            public boolean validateScopes(String username, Swagger swagger, MessageContext synCtx) throws APISecurityException {
                 if (username.equals("test_username")) {
                     return true;
                 } else if (username.equals("test_username_blocked")) {

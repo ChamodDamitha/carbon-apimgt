@@ -65,7 +65,7 @@ public class MultiAuthenticator implements Authenticator {
         supportedSecurityProtocols
                 .add(new SecurityProtocol(APIConstants.API_SECURITY_BASIC_AUTH, BasicAuthAuthenticator.class.getName(),
                         new String[] { APIConstants.AUTHORIZATION_HEADER,
-                                APIConstants.REMOVE_OAUTH_HEADERS_FROM_MESSAGE, "resourceScopes" },
+                                APIConstants.REMOVE_OAUTH_HEADERS_FROM_MESSAGE, APIConstants.SUBSCRIPTION_FIELD_API_ID },
                         new Class[] { String.class, boolean.class, String.class }));
     }
 

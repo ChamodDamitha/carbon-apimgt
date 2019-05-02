@@ -85,14 +85,14 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
     private String apiSecurity;
     private String apiLevelPolicy;
     private String certificateInformation;
-    private String resourceScopes;
+    private String apiId;
 
-    public String getResourceScopes() {
-        return resourceScopes;
+    public String getApiId() {
+        return apiId;
     }
 
-    public void setResourceScopes(String resourceScopes) {
-        this.resourceScopes = resourceScopes;
+    public void setApiId(String apiId) {
+        this.apiId = apiId;
     }
 
     /**
@@ -226,11 +226,12 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
                 parametersForAuthenticator.put(APIConstants.API_LEVEL_POLICY, apiLevelPolicy);
                 parametersForAuthenticator.put(APIConstants.CERTIFICATE_INFORMATION, certificateInformation);
                 parametersForAuthenticator.put(APIConstants.API_SECURITY, apiSecurity);
+                parametersForAuthenticator.put(APIConstants.SUBSCRIPTION_FIELD_API_ID, apiId);
                 authenticator = new MultiAuthenticator(parametersForAuthenticator);
             } else if (isOAuthProtected) {
                 authenticator = new OAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage);
             } else if (isBasicAuthProtected) {
-                authenticator = new BasicAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage, resourceScopes);
+                authenticator = new BasicAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage, apiId);
             } else {
                 authenticator = new MutualSSLAuthenticator(apiLevelPolicy, certificateInformation);
             }

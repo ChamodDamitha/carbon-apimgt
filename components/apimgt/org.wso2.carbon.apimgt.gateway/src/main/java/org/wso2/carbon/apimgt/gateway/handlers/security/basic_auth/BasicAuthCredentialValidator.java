@@ -17,16 +17,16 @@
 package org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth;
 
 
+import io.swagger.models.Path;
+import io.swagger.models.Swagger;
 import org.apache.axis2.AxisFault;
 import org.apache.axis2.client.ServiceClient;
 import org.apache.axis2.context.ConfigurationContext;
-import org.apache.axis2.engine.AxisConfiguration;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.MessageContext;
 import org.apache.synapse.core.SynapseEnvironment;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
-import org.json.simple.JSONObject;
 import org.wso2.carbon.apimgt.gateway.handlers.security.APISecurityConstants;
 import org.wso2.carbon.apimgt.gateway.handlers.security.APISecurityException;
 import org.wso2.carbon.apimgt.gateway.internal.ServiceReferenceHolder;
@@ -104,8 +104,8 @@ public class BasicAuthCredentialValidator {
         return logged;
     }
 
-    public boolean validateScopes(String username, JSONObject resourceScopes, MessageContext synCtx) throws APISecurityException {
-        if (resourceScopes != null) {
+    public boolean validateScopes(String username, Swagger swagger, MessageContext synCtx) throws APISecurityException {
+        if (swagger != null) {
             String apiElectedResource = (String) synCtx.getProperty(APIConstants.API_ELECTED_RESOURCE);
             org.apache.axis2.context.MessageContext axis2MessageContext =
                     ((Axis2MessageContext) synCtx).getAxis2MessageContext();
@@ -117,23 +117,34 @@ public class BasicAuthCredentialValidator {
             if (cachedResource != null) {
                 return true;
             } else {
-                if (resourceScopes.containsKey(resourceKey)) {
+                String resource_roles = null;
+                Path path = swagger.getPath(apiElectedResource);
+                if (path != null) {
+                    if (httpMethod.equals("GET")) {
+                        resource_roles = (String) path.getGet().getVendorExtensions().get(APIConstants.SWAGGER_X_ROLES);
+                    } else if (httpMethod.equals("POST")) {
+                        resource_roles = (String) path.getPost().getVendorExtensions().get(APIConstants.SWAGGER_X_ROLES);
+                    } else if (httpMethod.equals("PUT")) {
+                        resource_roles = (String) path.getPut().getVendorExtensions().get(APIConstants.SWAGGER_X_ROLES);
+                    } else if (httpMethod.equals("DELETE")) {
+                        resource_roles = (String) path.getDelete().getVendorExtensions().get(APIConstants.SWAGGER_X_ROLES);
+                    }
+                }
+                if (resource_roles != null) {
                     String[] user_roles;
                     try {
                         user_roles = remoteUserStoreManagerServiceStub.getRoleListOfUser(username);
                     } catch (Exception e) {
                         throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
                     }
-                    JSONObject scope = (JSONObject) resourceScopes.get(resourceKey);
-                    String allowed_roles = (String) scope.get("roles");
                     for (String role : user_roles) {
-                        if (allowed_roles.contains(role)) {
+                        if (resource_roles.contains(role)) {
                             getGatewayResourceCache().put(resourceCacheKey, resourceKey);
                             return true;
                         }
                     }
                 } else {
-//                      No scopes for the requested resource
+//                  No scopes for the requested resource
                     getGatewayResourceCache().put(resourceCacheKey, resourceKey);
                     return true;
                 }
