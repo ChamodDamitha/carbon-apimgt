@@ -983,7 +983,7 @@ public final class APIConstants {
         public static final String MD5_SESS = "MD5-sess";
 
         public static final String POSTFIX = "POSTFIX";
-        public static final String HTTP_METHOD = "HTTP_METHOD";
+        public static final String  HTTP_METHOD = "HTTP_METHOD";
         public static final String MESSAGE_BODY = "MessageBody";
         public static final String UNAMEPASSWORD = "UNAMEPASSWORD";
         public static final String NONCE_COUNT = "NonceCount";

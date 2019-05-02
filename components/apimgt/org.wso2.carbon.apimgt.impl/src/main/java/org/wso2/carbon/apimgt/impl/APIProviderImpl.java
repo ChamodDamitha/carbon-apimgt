@@ -18,6 +18,7 @@
 
 package org.wso2.carbon.apimgt.impl;
 
+import com.google.gson.Gson;
 import org.apache.axiom.om.OMAbstractFactory;
 import org.apache.axiom.om.OMElement;
 import org.apache.axiom.om.OMException;
@@ -34,6 +35,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.solr.client.solrj.util.ClientUtils;
+import org.apache.ws.security.util.Base64;
+import org.json.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -1876,6 +1879,7 @@ class APIProviderImpl extends AbstractAPIManager implements APIProvider {
             String[] apiSecurityLevels = apiSecurity.split(",");
             boolean isOauth2 = false;
             boolean isMutualSSL = false;
+            boolean isBasicAuth = false;
             for (String apiSecurityLevel : apiSecurityLevels) {
                 if (apiSecurityLevel.trim().equalsIgnoreCase(APIConstants.DEFAULT_API_SECURITY_OAUTH2)) {
                     isOauth2 = true;
@@ -1883,12 +1887,24 @@ class APIProviderImpl extends AbstractAPIManager implements APIProvider {
                 if (apiSecurityLevel.trim().equalsIgnoreCase(APIConstants.API_SECURITY_MUTUAL_SSL)) {
                     isMutualSSL = true;
                 }
+                if (apiSecurityLevel.trim().equalsIgnoreCase(APIConstants.API_SECURITY_BASIC_AUTH)) {
+                    isBasicAuth = true;
+                }
             }
             apiSecurity = APIConstants.DEFAULT_API_SECURITY_OAUTH2;
-            if (isOauth2 && isMutualSSL) {
+            if (isOauth2 && isMutualSSL && isBasicAuth) {
+                apiSecurity = APIConstants.DEFAULT_API_SECURITY_OAUTH2 + "," + APIConstants.API_SECURITY_MUTUAL_SSL
+                        + "," + APIConstants.API_SECURITY_BASIC_AUTH;
+            } else if (isOauth2 && isMutualSSL) {
                 apiSecurity = APIConstants.DEFAULT_API_SECURITY_OAUTH2 + "," + APIConstants.API_SECURITY_MUTUAL_SSL;
+            }  else if (isBasicAuth && isMutualSSL) {
+                apiSecurity = APIConstants.API_SECURITY_BASIC_AUTH + "," + APIConstants.API_SECURITY_MUTUAL_SSL;
+            }  else if (isOauth2 && isBasicAuth) {
+                apiSecurity = APIConstants.DEFAULT_API_SECURITY_OAUTH2 + "," + APIConstants.API_SECURITY_BASIC_AUTH;
             } else if (isMutualSSL) {
                 apiSecurity = APIConstants.API_SECURITY_MUTUAL_SSL;
+            } else if (isBasicAuth) {
+                apiSecurity = APIConstants.API_SECURITY_BASIC_AUTH;
             }
         }
         if (log.isDebugEnabled()) {

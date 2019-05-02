@@ -278,7 +278,6 @@
                                                     <% } %>
                                         <!--Response Caching End -->
                   <!--API Security Start-->
-                       <% if (isClientCertificateBasedAuthenticationEnabled) { %>
                            <div id="gatewaySecurity form-control">
                                 <div class="form-group">
                                     <label class="control-label col-sm-3"
@@ -299,6 +298,11 @@
                                             <input id="oauth2_checkbox" type="checkbox" class="gatewaysecurity_check"
                                             name="apisecurity_oauth2" value="oauth2" <%if(api.apisecurity_oauth2 =="checked"){%>checked<%}%>>
                                             <span class="helper"><%=i18n.localize("OAuth2")%></span>
+                                        </label>
+                                        <label id="basic_auth" class="gatewaysecurity_checkbox_label checkbox add-padding-bottom-1x">
+                                            <input id="basic_auth_checkbox" type="checkbox" class="gatewaysecurity_check"
+                                            name="apisecurity_basic_auth" value="basic_auth" <%if(api.apisecurity_basic_auth =="checked"){%>checked<%}%>>
+                                            <span class="helper"><%=i18n.localize("Basic Auth")%></span>
                                         </label>
                                         <label class="gatewaysecurity_checkbox_label checkbox add-padding-bottom-1x">
                                             <input id="mutualssl" type="checkbox" class="gatewaysecurity_check"
@@ -324,7 +328,6 @@
                                     </div>
                             </div>
 
-                      <% } %>
                   <!--Custom Authorization Header Start-->
                        <div id="authConfigs" <%if
 (isClientCertificateBasedAuthenticationEnabled && api.apisecurity_oauth2 !="checked"){%>hidden<%}%>>
@@ -653,7 +656,7 @@
                                                 <div class="controls col-sm-4 tierSelect">
                                                  <label id="tier_warning" class="alert-warning hide" style="display:
                                                    block;
-                                                   "><%=i18n.localize("Subscription tiers are not applicable for this API, as it is only protected with mutual SSL.")%></label>
+                                                   "><%=i18n.localize("Subscription tiers are not applicable for this API, as it is not protected with OAuth2.")%></label>
 
                                         			<%
                                                         for (var i = 0; i < tiers.length; i++) {
