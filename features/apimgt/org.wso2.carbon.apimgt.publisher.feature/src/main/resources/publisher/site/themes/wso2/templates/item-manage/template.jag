@@ -278,7 +278,6 @@
                                                     <% } %>
                                         <!--Response Caching End -->
                   <!--API Security Start-->
-                       <% if (isClientCertificateBasedAuthenticationEnabled) { %>
                            <div id="gatewaySecurity form-control">
                                 <div class="form-group">
                                     <label class="control-label col-sm-3"
@@ -329,7 +328,6 @@
                                     </div>
                             </div>
 
-                      <% } %>
                   <!--Custom Authorization Header Start-->
                        <div id="authConfigs" <%if
 (isClientCertificateBasedAuthenticationEnabled && api.apisecurity_oauth2 !="checked"){%>hidden<%}%>>
