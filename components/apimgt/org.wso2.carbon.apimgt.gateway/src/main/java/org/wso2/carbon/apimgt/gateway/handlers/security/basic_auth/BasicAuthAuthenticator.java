@@ -1,17 +1,17 @@
 /*
- *  Copyright WSO2 Inc.
+ * Copyright (c) 2019, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth;
@@ -20,20 +20,14 @@ import io.swagger.models.Swagger;
 import io.swagger.parser.SwaggerParser;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.HttpHeaders;
 import org.apache.synapse.MessageContext;
 import org.apache.synapse.core.SynapseEnvironment;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.apache.ws.security.WSSecurityException;
 import org.apache.ws.security.util.Base64;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 import org.wso2.carbon.apimgt.gateway.MethodStats;
 import org.wso2.carbon.apimgt.gateway.handlers.security.*;
-import org.wso2.carbon.apimgt.gateway.internal.ServiceReferenceHolder;
 import org.wso2.carbon.apimgt.impl.APIConstants;
-import org.wso2.carbon.apimgt.impl.APIManagerConfiguration;
 import org.wso2.carbon.apimgt.impl.dto.VerbInfoDTO;
 import org.apache.synapse.config.Entry;
 
@@ -50,27 +44,41 @@ public class BasicAuthAuthenticator implements Authenticator {
     private final String oauthKeyHeaderSegment = "Bearer";
     private final String authHeaderSplitter = ",";
 
-    private String securityHeader = HttpHeaders.AUTHORIZATION;
+    private String securityHeader;
     private String requestOrigin;
-    private boolean removeOAuthHeadersFromOutMessage = true;
-    private JSONObject resourceScopes;
+    private boolean removeOAuthHeadersFromOutMessage;
     private BasicAuthCredentialValidator basicAuthCredentialValidator;
     private String apiId;
     private Swagger swagger = null;
 
-    public void setBasicAuthCredentialValidator(BasicAuthCredentialValidator basicAuthCredentialValidator) {
-        this.basicAuthCredentialValidator = basicAuthCredentialValidator;
-    }
 
-    public BasicAuthAuthenticator() {
-    }
-
+    /**
+     * Initialize the authenticator with the required parameters.
+     *
+     * @param authorizationHeader the Authorization header
+     * @param removeOAuthHeader whether the OAuth header need to be removed before passing to the backend or not
+     * @param apiId the API Identifier
+     */
     public BasicAuthAuthenticator(String authorizationHeader, boolean removeOAuthHeader, String apiId) {
         this.securityHeader = authorizationHeader;
         this.removeOAuthHeadersFromOutMessage = removeOAuthHeader;
         this.apiId = apiId;
     }
 
+    /**
+     * Set the BasicAuthCredentialValidator
+     *
+     * @param basicAuthCredentialValidator the BasicAuthCredentialValidator instance to be set
+     */
+    public void setBasicAuthCredentialValidator(BasicAuthCredentialValidator basicAuthCredentialValidator) {
+        this.basicAuthCredentialValidator = basicAuthCredentialValidator;
+    }
+
+    /**
+     * Initializes this authenticator instance.
+     *
+     * @param env Current SynapseEnvironment instance
+     */
     public void init(SynapseEnvironment env) {
         try {
             this.basicAuthCredentialValidator = new BasicAuthCredentialValidator(env);
@@ -79,11 +87,20 @@ public class BasicAuthAuthenticator implements Authenticator {
         }
     }
 
+    /**
+     * Destroys this authenticator and releases any resources allocated to it.
+     */
     @java.lang.Override
-    public void destroy() {
+    public void destroy() {}
 
-    }
-
+    /**
+     * Authenticates the given request to see if an API consumer is allowed to access
+     * a particular API or not.
+     *
+     * @param synCtx The message to be authenticated
+     * @return true if the authentication is successful (never returns false)
+     * @throws APISecurityException If an authentication failure or some other error occurs
+     */
     @MethodStats
     public boolean authenticate(MessageContext synCtx) throws APISecurityException {
         if (log.isDebugEnabled()) {
@@ -135,10 +152,17 @@ public class BasicAuthAuthenticator implements Authenticator {
 
                 return true;
             }
+            throw new APISecurityException(APISecurityConstants.INVALID_SCOPE, "Scope validation failed");
         }
-        return false;
     }
 
+    /**
+     * Extract the basic authentication credentials from the authorization header of the message
+     *
+     * @param synCtx The message to be authenticated
+     * @return an String array containing username and password
+     * @throws APISecurityException in case of invalid authorization header or no header
+     */
     protected String[] extractBasicAuthCredentials(MessageContext synCtx) throws APISecurityException {
         Map headers = (Map) ((Axis2MessageContext) synCtx).getAxis2MessageContext().
                 getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
@@ -175,8 +199,7 @@ public class BasicAuthAuthenticator implements Authenticator {
                     try {
                         String authKey = new String(Base64.decode(authHeader.substring(6).trim())); // len(Basic) = 5
                         if (authKey.contains(":")) {
-                            String credentials[] = authKey.split(":");
-                            return credentials;
+                            return authKey.split(":");
                         } else {
                             throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
                                     "Invalid authorization key");
@@ -195,14 +218,32 @@ public class BasicAuthAuthenticator implements Authenticator {
                 "Basic Auth credentials not found");
     }
 
+    /**
+     * Returns a string representation of the authentication challenge imposed by this
+     * authenticator. In case of an authentication failure this value will be sent back
+     * to the API consumer in the form of a WWW-Authenticate header.
+     *
+     * @return A string representation of the authentication challenge
+     */
     public String getChallengeString() {
         return "Basic Auth realm=\"WSO2 API Manager\"";
     }
 
+
+    /**
+     * Returns the origin of the request
+     *
+     * @return returns the origin of the request
+     */
     public String getRequestOrigin() {
         return requestOrigin;
     }
 
+    /**
+     * Sets the origin of the request
+     *
+     * @param requestOrigin the origin of the request
+     */
     public void setRequestOrigin(String requestOrigin) {
         this.requestOrigin = requestOrigin;
     }

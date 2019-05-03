@@ -254,6 +254,11 @@ public class KeyManagerUserOperationListener extends IdentityOathEventListener {
         return true;
     }
 
+    /**
+     * Removes a given username that is cached on the API Gateway.
+     *
+     * @param username The username to be cleared from the cache
+     */
     private void clearGatewayUsernameCache(String username) {
         APIManagerConfiguration config = getApiManagerConfiguration();
         Map<String, Environment> gatewayEnvs = config.getApiGatewayEnvironments();
@@ -274,6 +279,12 @@ public class KeyManagerUserOperationListener extends IdentityOathEventListener {
             }
         }
     }
+
+    /**
+     * Removes a given list of username that is cached on the API Gateway.
+     *
+     * @param username_list The list of username to be cleared from the cache
+     */
     private void clearGatewayUsernameCache(String[] username_list) {
         APIManagerConfiguration config = getApiManagerConfiguration();
         Map<String, Environment> gatewayEnvs = config.getApiGatewayEnvironments();

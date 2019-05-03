@@ -129,6 +129,11 @@ public class APIAuthenticationService extends AbstractServiceBusAdmin {
         }
     }
 
+    /**
+     * This method is to invalidate a username which is already in gateway cache.
+     *
+     * @param username The username to be remove from the cache
+     */
     public void invalidateCachedUsername(String username) {
         if (username == null) {
             log.debug("No username received to invalidate Gateway Username Cache.");
@@ -147,6 +152,11 @@ public class APIAuthenticationService extends AbstractServiceBusAdmin {
         }
     }
 
+    /**
+     * This method is to invalidate usernames which are already in gateway cache.
+     *
+     * @param username_list The usernames to be remove from the cache
+     */
     public void invalidateCachedUsernames(String[] username_list) {
         if (username_list == null || username_list.length == 0) {
             log.debug("No username received to invalidate Gateway Username Cache.");

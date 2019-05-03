@@ -83,6 +83,7 @@ public class APIAuthenticationAdminClient {
 
     /**
      * Removes the active tokens that are cached on the API Gateway
+     *
      * @param activeTokens - The active access tokens to be removed from the gateway cache.
      * @throws AxisFault - If a communication error occurs.
      */
@@ -97,6 +98,12 @@ public class APIAuthenticationAdminClient {
         }
     }
 
+    /**
+     * Removes a given username that is cached on the API Gateway
+     *
+     * @param username - The username to be removed from the gateway cache.
+     * @throws AxisFault - If a communication error occurs.
+     */
     public void invalidateCachedUsername(String username) throws AxisFault {
         try {
             stub.invalidateCachedUsername(username);
@@ -107,6 +114,13 @@ public class APIAuthenticationAdminClient {
                     " APIAuthenticationService" , e);
         }
     }
+
+    /**
+     * Removes given usernames that is cached on the API Gateway
+     *
+     * @param username_list - The list of usernames to be removed from the gateway cache.
+     * @throws AxisFault - If a communication error occurs.
+     */
     public void invalidateCachedUsernames(String[] username_list) throws AxisFault {
         try {
             stub.invalidateCachedUsernames(username_list);
