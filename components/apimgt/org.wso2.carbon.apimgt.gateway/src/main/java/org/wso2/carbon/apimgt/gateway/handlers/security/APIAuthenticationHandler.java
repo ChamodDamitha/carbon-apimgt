@@ -143,10 +143,20 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
         }
     }
 
+    /**
+     * To get the Authorization Header.
+     *
+     * @return Relevant the Authorization Header of the API request
+     */
     public String getAuthorizationHeader() {
         return authorizationHeader;
     }
 
+    /**
+     * To set the Authorization Header.
+     *
+     * @param authorizationHeader the Authorization Header of the API request.
+     */
     public void setAuthorizationHeader(String authorizationHeader) {
         this.authorizationHeader = authorizationHeader;
     }

@@ -158,19 +158,13 @@ public class MultiAuthenticator implements Authenticator {
                         i = 1;
                     } else {
                         isAuthenticated = true;
-                        // stop authenticating using other authenticators
-                        i = authenticatorList.size();
                     }
                 } else {
                     // stop authenticating using other authenticators
                     i = authenticatorList.size();
                 }
             } catch (APISecurityException ex) {
-                if (StringUtils.isNotEmpty(errorMessage)) {
-                    errorMessage += " and ";
-                }
                 errorMessage += ex.getMessage();
-
                 // stop authenticating using other authenticators
                 i = authenticatorList.size();
             }

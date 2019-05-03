@@ -1,17 +1,17 @@
 /*
- *  Copyright WSO2 Inc.
+ * Copyright (c) 2019, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth;
@@ -43,24 +43,32 @@ import javax.cache.Caching;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
+/**
+ * This class will validate the basic auth credentials.
+ */
 public class BasicAuthCredentialValidator {
 
     private boolean gatewayKeyCacheEnabled;
     private static boolean gatewayUsernameCacheInit = false;
-    private static boolean gatewayInvalidUsernameCacheInit = false;
     private static boolean gatewayResourceCacheInit = false;
 
     protected Log log = LogFactory.getLog(getClass());
     private RemoteUserStoreManagerServiceStub remoteUserStoreManagerServiceStub;
 
-    public BasicAuthCredentialValidator() {
+    /**
+     * Initialize the validator.
+     */
+    public BasicAuthCredentialValidator() {}
 
-    }
-
+    /**
+     * Initialize the validator with the synapse environment.
+     *
+     * @param env the synapse environment
+     * @throws APISecurityException If an authentication failure or some other error occurs
+     */
     public BasicAuthCredentialValidator(SynapseEnvironment env) throws APISecurityException {
         this.gatewayKeyCacheEnabled = isGatewayTokenCacheEnabled();
         this.getGatewayUsernameCache();
-
 
         ConfigurationContext configurationContext = ServiceReferenceHolder.getInstance().getAxis2ConfigurationContext();
         APIManagerConfiguration config = HostObjectComponent.getAPIManagerConfiguration();
@@ -80,30 +88,55 @@ public class BasicAuthCredentialValidator {
                 config.getFirstProperty(APIConstants.AUTH_MANAGER_PASSWORD), svcClient);
     }
 
+    /**
+     * Validates the given username and password against the users in the user store.
+     *
+     * @param username given username
+     * @param password given password
+     * @return true if the validation passed
+     * @throws APISecurityException If an authentication failure or some other error occurs
+     */
     public boolean validate(String username, String password) throws APISecurityException {
         String providedPasswordHash = hashString(password);
         if (gatewayKeyCacheEnabled) {
             String cachedPasswordHash = (String) getGatewayUsernameCache().get(username);
             if (cachedPasswordHash != null && cachedPasswordHash.equals(providedPasswordHash)) {
-                return true;
+                return true; //If (username->password) is in the valid cache
             } else {
                 String invalidCachedPasswordHash = (String) getInvalidUsernameCache().get(username);
                 if (invalidCachedPasswordHash != null && invalidCachedPasswordHash.equals(providedPasswordHash)) {
-                    return false;
+                    return false; //If (username->password) is in the invalid cache
                 }
             }
         }
 
-        boolean logged = validateUsernamePassword(username, password);
+        boolean logged;
+        try {
+            logged = remoteUserStoreManagerServiceStub.authenticate(username, password);
+        } catch (Exception e) {
+            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
+        }
+
         if (logged) {
+            // put (username->password) into the valid cache
             getGatewayUsernameCache().put(username, providedPasswordHash);
         } else {
+            // put (username->password) into the invalid cache
             getInvalidUsernameCache().put(username, providedPasswordHash);
         }
 
         return logged;
     }
 
+    /**
+     * Validates the roles of the given user against the roles of the scopes of the API resource.
+     *
+     * @param username given username
+     * @param swagger swagger of the API
+     * @param synCtx The message to be authenticated
+     * @return true if the validation passed
+     * @throws APISecurityException If an authentication failure or some other error occurs
+     */
     public boolean validateScopes(String username, Swagger swagger, MessageContext synCtx) throws APISecurityException {
         if (swagger != null) {
             String apiElectedResource = (String) synCtx.getProperty(APIConstants.API_ELECTED_RESOURCE);
@@ -117,6 +150,7 @@ public class BasicAuthCredentialValidator {
             if (cachedResource != null) {
                 return true;
             } else {
+                // retrieve the user roles related to the scope of the API resource
                 String resource_roles = null;
                 Path path = swagger.getPath(apiElectedResource);
                 if (path != null) {
@@ -130,13 +164,14 @@ public class BasicAuthCredentialValidator {
                         resource_roles = (String) path.getDelete().getVendorExtensions().get(APIConstants.SWAGGER_X_ROLES);
                     }
                 }
-                if (resource_roles != null) {
+                if (resource_roles != null && resource_roles.trim() != "") {
                     String[] user_roles;
                     try {
                         user_roles = remoteUserStoreManagerServiceStub.getRoleListOfUser(username);
                     } catch (Exception e) {
                         throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
                     }
+                    // check if the roles related to the API resource contains any of the role of the user
                     for (String role : user_roles) {
                         if (resource_roles.contains(role)) {
                             getGatewayResourceCache().put(resourceCacheKey, resourceKey);
@@ -144,18 +179,24 @@ public class BasicAuthCredentialValidator {
                         }
                     }
                 } else {
-//                  No scopes for the requested resource
+                    // No scopes for the requested resource
                     getGatewayResourceCache().put(resourceCacheKey, resourceKey);
                     return true;
                 }
             }
         } else {
-//                  No scopes for API
+            // No scopes for API
             return true;
         }
         throw new APISecurityException(APISecurityConstants.INVALID_SCOPE, "Scope validation failed");
     }
 
+    /**
+     * Returns the md5 hash of a given string.
+     *
+     * @param str the string input to be hashed
+     * @return hashed string
+     */
     private String hashString(String str) {
         String generatedHash = null;
         try {
@@ -179,91 +220,130 @@ public class BasicAuthCredentialValidator {
         return generatedHash;
     }
 
-    private boolean validateUsernamePassword(String username, String password) throws APISecurityException {
-        boolean logged;
-        try {
-            logged = remoteUserStoreManagerServiceStub.authenticate(username, password);
-        } catch (Exception e) {
-            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
-        }
-        return logged;
-    }
-
-    protected Cache getGatewayResourceCache() {
+    /**
+     * Returns the resource request cache.
+     *
+     * @return the resource cache
+     */
+    private Cache getGatewayResourceCache() {
         String apimGWCacheExpiry = getApiManagerConfiguration().getFirstProperty(APIConstants.TOKEN_CACHE_EXPIRY);
         if (!gatewayResourceCacheInit) {
             gatewayResourceCacheInit = true;
             if (apimGWCacheExpiry != null) {
-                return getCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_RESOURCE_CACHE_NAME, Long.parseLong(apimGWCacheExpiry), Long.parseLong(apimGWCacheExpiry));
+                return createCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_RESOURCE_CACHE_NAME,
+                        Long.parseLong(apimGWCacheExpiry), Long.parseLong(apimGWCacheExpiry));
             } else {
                 long defaultCacheTimeout =
                         getDefaultCacheTimeout();
-                return getCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_RESOURCE_CACHE_NAME, defaultCacheTimeout, defaultCacheTimeout);
+                return createCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_RESOURCE_CACHE_NAME,
+                        defaultCacheTimeout, defaultCacheTimeout);
             }
         }
         return getCacheFromCacheManager(APIConstants.GATEWAY_RESOURCE_CACHE_NAME);
     }
 
-    protected Cache getGatewayUsernameCache() {
+    /**
+     * Returns the valid username cache.
+     *
+     * @return the valid username cache
+     */
+    private Cache getGatewayUsernameCache() {
         String apimGWCacheExpiry = getApiManagerConfiguration().getFirstProperty(APIConstants.TOKEN_CACHE_EXPIRY);
         if (!gatewayUsernameCacheInit) {
             gatewayUsernameCacheInit = true;
             if (apimGWCacheExpiry != null) {
-                return getCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_USERNAME_CACHE_NAME, Long.parseLong(apimGWCacheExpiry), Long.parseLong(apimGWCacheExpiry));
+                return createCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_USERNAME_CACHE_NAME,
+                        Long.parseLong(apimGWCacheExpiry), Long.parseLong(apimGWCacheExpiry));
             } else {
                 long defaultCacheTimeout =
                         getDefaultCacheTimeout();
-                return getCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_USERNAME_CACHE_NAME, defaultCacheTimeout, defaultCacheTimeout);
+                return createCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_USERNAME_CACHE_NAME,
+                        defaultCacheTimeout, defaultCacheTimeout);
             }
         }
         return getCacheFromCacheManager(APIConstants.GATEWAY_USERNAME_CACHE_NAME);
     }
 
-    protected Cache getCache(final String cacheManagerName, final String cacheName, final long modifiedExp,
-                             long accessExp) {
-        return APIUtil.getCache(cacheManagerName, cacheName, modifiedExp, accessExp);
-    }
-
-    protected APIManagerConfiguration getApiManagerConfiguration() {
-        return ServiceReferenceHolder.getInstance().getAPIManagerConfiguration();
-    }
-
-    protected Cache getInvalidUsernameCache() {
+    /**
+     * Returns the invalid username cache.
+     *
+     * @return the invalid username cache
+     */
+    private Cache getInvalidUsernameCache() {
         String apimGWCacheExpiry = getApiManagerConfiguration().
                 getFirstProperty(APIConstants.TOKEN_CACHE_EXPIRY);
 
-        if (!gatewayInvalidUsernameCacheInit) {
-            gatewayInvalidUsernameCacheInit = true;
+        if (!gatewayUsernameCacheInit) {
+            gatewayUsernameCacheInit = true;
             if (apimGWCacheExpiry != null) {
-                return getCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_INVALID_USERNAME_CACHE_NAME,
+                return createCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_INVALID_USERNAME_CACHE_NAME,
                         Long.parseLong(apimGWCacheExpiry), Long.parseLong(apimGWCacheExpiry));
             } else {
                 long defaultCacheTimeout = getDefaultCacheTimeout();
-                return getCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_INVALID_USERNAME_CACHE_NAME,
+                return createCache(APIConstants.API_MANAGER_CACHE_MANAGER, APIConstants.GATEWAY_INVALID_USERNAME_CACHE_NAME,
                         defaultCacheTimeout, defaultCacheTimeout);
             }
         }
         return getCacheFromCacheManager(APIConstants.GATEWAY_INVALID_USERNAME_CACHE_NAME);
     }
 
+    /**
+     * Create the Cache object from the given parameters.
+     *
+     * @param cacheManagerName name of the cache manager
+     * @param cacheName name of the Cache
+     * @param modifiedExp value of the modified expiry type
+     * @param accessExp value of the accessed expiry type
+     * @return the cache object
+     */
+    private Cache createCache(final String cacheManagerName, final String cacheName, final long modifiedExp,
+                              long accessExp) {
+        return APIUtil.getCache(cacheManagerName, cacheName, modifiedExp, accessExp);
+    }
 
-    protected Cache getCacheFromCacheManager(String cacheName) {
+    /**
+     * Returns the API Manager Configuration.
+     *
+     * @return the API Manager Configuration
+     */
+    private APIManagerConfiguration getApiManagerConfiguration() {
+        return ServiceReferenceHolder.getInstance().getAPIManagerConfiguration();
+    }
+
+    /**
+     * Returns the Cache object of the given name.
+     *
+     * @param cacheName name of the Cache
+     * @return the cache object
+     */
+    private Cache getCacheFromCacheManager(String cacheName) {
         return Caching.getCacheManager(
                 APIConstants.API_MANAGER_CACHE_MANAGER).getCache(cacheName);
     }
 
-    protected long getDefaultCacheTimeout() {
+    /**
+     * Returns the default cache timeout.
+     *
+     * @return the default cache timeout
+     */
+    private long getDefaultCacheTimeout() {
         return Long.valueOf(ServerConfiguration.getInstance().getFirstProperty(APIConstants.DEFAULT_CACHE_TIMEOUT))
                 * 60;
     }
 
-    public boolean isGatewayTokenCacheEnabled() {
+    /**
+     * Returns whether the gateway token cache is enabled.
+     *
+     * @return true if the gateway token cache is enabled
+     */
+    private boolean isGatewayTokenCacheEnabled() {
         try {
             APIManagerConfiguration config = getApiManagerConfiguration();
             String cacheEnabled = config.getFirstProperty(APIConstants.GATEWAY_TOKEN_CACHE_ENABLED);
             return Boolean.parseBoolean(cacheEnabled);
         } catch (Exception e) {
-            log.error("Did not found valid API Validation Information cache configuration. Use default configuration" + e);
+            log.error("Did not found valid API Validation Information cache configuration." +
+                    " Use default configuration" + e);
         }
         return true;
     }
