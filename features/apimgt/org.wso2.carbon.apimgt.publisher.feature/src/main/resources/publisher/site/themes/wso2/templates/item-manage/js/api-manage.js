@@ -195,8 +195,10 @@ $(document).ready(function(){
         $("#gatewaysecurity_error").addClass("hide");
         if(this.checked) {
             $("#manage-certificates").removeAttr("hidden");
+            $("#mutualssl_state_section").removeAttr("hidden");
         } else {
             $("#manage-certificates").attr("hidden", "");
+            $("#mutualssl_state_section").attr("hidden", "");
         }
     });
 

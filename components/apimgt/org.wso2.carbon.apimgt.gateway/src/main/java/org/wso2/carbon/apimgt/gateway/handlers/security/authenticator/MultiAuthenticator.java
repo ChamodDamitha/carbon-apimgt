@@ -42,6 +42,7 @@ public class MultiAuthenticator implements Authenticator {
     private static final Log log = LogFactory.getLog(MultiAuthenticator.class);
     private volatile List<Authenticator> authenticatorList;
     private String apiSecurity;
+    private boolean isMutualSSLMandatory;
     private String authorizationHeader;
     private boolean removeOAuthHeadersFromOutMessage;
     private Map<String, Object> parameters;
@@ -76,6 +77,8 @@ public class MultiAuthenticator implements Authenticator {
      */
     public MultiAuthenticator(Map<String, Object> parameters) {
         apiSecurity = (String) parameters.get(APIConstants.API_SECURITY);
+        isMutualSSLMandatory = (apiSecurity != null &&
+                apiSecurity.contains(APIConstants.API_SECURITY_MUTUAL_SSL_MANDATORY));
         authorizationHeader = (String) parameters.get(APIConstants.AUTHORIZATION_HEADER);
         removeOAuthHeadersFromOutMessage = (Boolean) parameters.get(APIConstants.REMOVE_OAUTH_HEADERS_FROM_MESSAGE);
         this.parameters = parameters;
@@ -147,26 +150,29 @@ public class MultiAuthenticator implements Authenticator {
         int apiSecurityErrorCode = 0;
 
         int i = 0;
-        Authenticator firstAuthenticator = authenticatorList.get(0);
 
-        if (firstAuthenticator instanceof MutualSSLAuthenticator) {
-            try {
-                boolean isSSLAuthenticated = firstAuthenticator.authenticate(synCtx);
-                if (isSSLAuthenticated) {
-                    if (authenticatorList.size() > 1) {
-                        // To authenticate using next authenticator onwards
-                        i = 1;
+        if (isMutualSSLMandatory) {
+            Authenticator firstAuthenticator = authenticatorList.get(0);
+
+            if (firstAuthenticator instanceof MutualSSLAuthenticator) {
+                try {
+                    boolean isSSLAuthenticated = firstAuthenticator.authenticate(synCtx);
+                    if (isSSLAuthenticated) {
+                        if (authenticatorList.size() > 1) {
+                            // To authenticate using next authenticator onwards
+                            i = 1;
+                        } else {
+                            isAuthenticated = true;
+                        }
                     } else {
-                        isAuthenticated = true;
+                        // stop authenticating using other authenticators
+                        i = authenticatorList.size();
                     }
-                } else {
+                } catch (APISecurityException ex) {
+                    errorMessage += ex.getMessage();
                     // stop authenticating using other authenticators
                     i = authenticatorList.size();
                 }
-            } catch (APISecurityException ex) {
-                errorMessage += ex.getMessage();
-                // stop authenticating using other authenticators
-                i = authenticatorList.size();
             }
         }
 
