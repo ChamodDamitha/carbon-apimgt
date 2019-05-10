@@ -28,37 +28,41 @@
                                             name="apisecurity_basic_auth" value="basic_auth" <%if(api.apisecurity_basic_auth =="checked"){%>checked<%}%>>
                                             <span class="helper"><%=i18n.localize("Basic Auth")%></span>
                                         </label>
-                                        <hr>
-                                        <label class="gatewaysecurity_checkbox_label checkbox add-padding-bottom-1x">
-                                            <input id="mutualssl" type="checkbox" class="gatewaysecurity_check"
-                                             name="apisecurity_mutualssl" value="mutualssl" <%if(api.apisecurity_mutualssl =="checked")
-                                             {%>checked<%}%>>
-                                            <span class="helper"><%=i18n.localize("Mutual SSL")%></span>
-                                        </label>
-                                        <div id="mutualssl_state_section" <%if(api.apisecurity_mutualssl !="checked") { %> hidden <% } %>>
-                                            <label class="radio-inline">
-                                            <input id="mutualssl" type="radio" class="mutualssl_state" name="mutualssl_state_mandatory" value="mutualssl_mandatory"
-                                            <%if(api.apisecurity_mutualssl_mandatory=="checked"){%>checked<%}%>>Mandatory</label>
-                                            <label class="radio-inline"><input type="radio" class="mutualssl_state" name="mutualssl_state_optional" value="mutualssl_optional"
-                                            <%if(api.apisecurity_mutualssl_mandatory!="checked"){%>checked<%}%>>Optional</label>
-                                        </div>
+                                        <% if (isClientCertificateBasedAuthenticationEnabled) { %>
+                                            <hr>
+                                            <label class="gatewaysecurity_checkbox_label checkbox add-padding-bottom-1x">
+                                                <input id="mutualssl" type="checkbox" class="gatewaysecurity_check"
+                                                 name="apisecurity_mutualssl" value="mutualssl" <%if(api.apisecurity_mutualssl =="checked")
+                                                 {%>checked<%}%>>
+                                                <span class="helper"><%=i18n.localize("Mutual SSL")%></span>
+                                            </label>
+                                            <div id="mutualssl_state_section" <%if(api.apisecurity_mutualssl !="checked") { %> hidden <% } %>>
+                                                <label class="radio-inline">
+                                                <input id="mutualssl" type="radio" class="mutualssl_state" name="mutualssl_state_mandatory" value="mutualssl_mandatory"
+                                                <%if(api.apisecurity_mutualssl_mandatory=="checked"){%>checked<%}%>>Mandatory</label>
+                                                <label class="radio-inline"><input type="radio" class="mutualssl_state" name="mutualssl_state_optional" value="mutualssl_optional"
+                                                <%if(api.apisecurity_mutualssl_mandatory!="checked"){%>checked<%}%>>Optional</label>
+                                            </div>
+                                        <% } %>
                                         <label id="gatewaysecurity_error" class="error hide" style="display: block;
                                         "><%=i18n.localize("Please select at least one API security method.")%></label>
                                     </div>
                                 </div>
                             </div>
                                <!--Manage Certificates - main-->
-                            <div class="form-group" id="manage-certificates"
-                            <%if(api.apisecurity_mutualssl !="checked") { %> hidden <% } %>>
-                                <div class="control-label col-sm-3"></div>
-                                    <div class="col-sm-4">
-                                            <a href="#" class="manage-certs but"
-                                            ref="manage-endpoint-certs" title="Manage Certificates"><%=i18n.localize("Manage Certificates")%></a>
-                                    </div>
-                                    <div id="manage-endpoint-certs" style="display: none">
-                                        <div id="cert-config"></div>
-                                    </div>
-                            </div>
+                            <% if (isClientCertificateBasedAuthenticationEnabled) { %>
+                                <div class="form-group" id="manage-certificates"
+                                <%if(api.apisecurity_mutualssl !="checked") { %> hidden <% } %>>
+                                    <div class="control-label col-sm-3"></div>
+                                        <div class="col-sm-4">
+                                                <a href="#" class="manage-certs but"
+                                                ref="manage-endpoint-certs" title="Manage Certificates"><%=i18n.localize("Manage Certificates")%></a>
+                                        </div>
+                                        <div id="manage-endpoint-certs" style="display: none">
+                                            <div id="cert-config"></div>
+                                        </div>
+                                </div>
+                            <% } %>
 
                   <!--Custom Authorization Header Start-->
                        <div id="authConfigs" <%if

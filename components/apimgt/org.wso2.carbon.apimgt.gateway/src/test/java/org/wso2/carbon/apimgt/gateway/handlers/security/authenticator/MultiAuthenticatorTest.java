@@ -27,7 +27,7 @@ import org.wso2.carbon.apimgt.gateway.APIMgtGatewayConstants;
 import org.wso2.carbon.apimgt.gateway.handlers.security.APISecurityConstants;
 import org.wso2.carbon.apimgt.gateway.handlers.security.APISecurityException;
 import org.wso2.carbon.apimgt.gateway.handlers.security.Authenticator;
-import org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth.BasicAuthAuthenticator;
+import org.wso2.carbon.apimgt.gateway.handlers.security.basicauth.BasicAuthAuthenticator;
 import org.wso2.carbon.apimgt.gateway.handlers.security.oauth.OAuthAuthenticator;
 import org.wso2.carbon.apimgt.impl.APIConstants;
 
@@ -54,7 +54,7 @@ public class MultiAuthenticatorTest {
         parametersForAuthenticator.put(APIConstants.REMOVE_OAUTH_HEADERS_FROM_MESSAGE, true);
         parametersForAuthenticator.put(APIConstants.API_LEVEL_POLICY, null);
         parametersForAuthenticator.put(APIConstants.CERTIFICATE_INFORMATION, null);
-        parametersForAuthenticator.put(APIConstants.API_SECURITY, "basic_auth,oauth2");
+        parametersForAuthenticator.put(APIConstants.API_SECURITY, "basicauth,oauth2");
         multiAuthenticator = new MultiAuthenticator(parametersForAuthenticator);
 
         List<Authenticator> authenticatorList = new ArrayList<>();

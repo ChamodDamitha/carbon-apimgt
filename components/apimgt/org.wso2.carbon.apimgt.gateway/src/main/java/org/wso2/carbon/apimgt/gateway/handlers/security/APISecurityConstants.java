@@ -22,12 +22,12 @@ public class APISecurityConstants {
     public static final String API_AUTH_GENERAL_ERROR_MESSAGE = "Unclassified Authentication Failure";
 
     public static final int API_AUTH_INVALID_CREDENTIALS = 900901;
-    public static final String API_AUTH_INVALID_CREDENTIALS_MESSAGE = "Invalid Credentials";
+    public static final String API_AUTH_INVALID_CREDENTIALS_MESSAGE = "Invalid OAuth Credentials";
     public static final String API_AUTH_INVALID_CREDENTIALS_DESCRIPTION =
             "Make sure you have given the correct access token";
 
     public static final int API_AUTH_MISSING_CREDENTIALS = 900902;
-    public static final String API_AUTH_MISSING_CREDENTIALS_MESSAGE = "Missing Credentials";
+    public static final String API_AUTH_MISSING_CREDENTIALS_MESSAGE = "Missing OAuth Credentials";
     public static final String API_AUTH_MISSING_CREDENTIALS_DESCRIPTION =
             "Make sure your API invocation call has a header: ";
 
@@ -71,6 +71,8 @@ public class APISecurityConstants {
 
     public static final int API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS = 900913;
     public static final int API_AUTH_MISSING_BASIC_AUTH_AND_OAUTH_CREDENTIALS = 900914;
+    public static final String API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS_MESSAGE = "Missing Basic Auth Credentials";
+    public static final String API_AUTH_INVALID_BASIC_AUTH_CREDENTIALS_MESSAGE = "Invalid Basic Auth Credentials";
 
     // We have added this because we need to add an additional description to the original one and we need to
     // separate the 2 messages

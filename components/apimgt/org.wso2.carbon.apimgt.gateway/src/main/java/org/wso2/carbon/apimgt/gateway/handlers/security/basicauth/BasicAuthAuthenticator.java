@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth;
+package org.wso2.carbon.apimgt.gateway.handlers.security.basicauth;
 
 import io.swagger.models.Swagger;
 import io.swagger.parser.SwaggerParser;
@@ -31,6 +31,7 @@ import org.wso2.carbon.apimgt.impl.APIConstants;
 import org.wso2.carbon.apimgt.impl.dto.VerbInfoDTO;
 import org.apache.synapse.config.Entry;
 
+import java.util.ArrayList;
 import java.util.Map;
 
 /**
@@ -41,8 +42,6 @@ public class BasicAuthAuthenticator implements Authenticator {
 
     private static final Log log = LogFactory.getLog(BasicAuthAuthenticator.class);
     private final String basicAuthKeyHeaderSegment = "Basic";
-    private final String oauthKeyHeaderSegment = "Bearer";
-    private final String authHeaderSplitter = ",";
 
     private String securityHeader;
     private String requestOrigin;
@@ -122,7 +121,7 @@ public class BasicAuthAuthenticator implements Authenticator {
         boolean logged = basicAuthCredentialValidator.validate(username, password);
         if (!logged) {
             throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
-                    "Authentication failed due to username & password mismatch");
+                    APISecurityConstants.API_AUTH_INVALID_BASIC_AUTH_CREDENTIALS_MESSAGE);
         } else { // username password matches
             //scope validation
             boolean scopesValid = basicAuthCredentialValidator.validateScopes(username, swagger, synCtx);
@@ -137,7 +136,7 @@ public class BasicAuthAuthenticator implements Authenticator {
                 authContext.setStopOnQuotaReach(true);//Since we don't have details on unauthenticated tier we setting stop on quota reach true
                 //Resource level throttling is not considered, hence assigning the unlimited tier for that
                 VerbInfoDTO verbInfoDTO = new VerbInfoDTO();
-                verbInfoDTO.setThrottling(APIConstants.UNLIMITED_TIER);
+                verbInfoDTO.setThrottling(APIConstants.UNLIMITED_TIER); //TODO:use swagger to set this
                 synCtx.setProperty(APIConstants.VERB_INFO_DTO, verbInfoDTO);
 
                 //In basic authentication scenario, we will use the username for throttling.
@@ -145,7 +144,7 @@ public class BasicAuthAuthenticator implements Authenticator {
                 authContext.setKeyType(APIConstants.API_KEY_TYPE_PRODUCTION);
                 authContext.setUsername(username);
                 authContext.setCallerToken(null);
-                authContext.setApplicationName(null);
+                authContext.setApplicationName(null);//TODO:set a default name
                 authContext.setApplicationId(username); //Set username as application ID in basic auth scenario
                 authContext.setConsumerKey(null);
                 APISecurityUtils.setAuthenticationContext(synCtx, authContext, null);
@@ -163,59 +162,72 @@ public class BasicAuthAuthenticator implements Authenticator {
      * @return an String array containing username and password
      * @throws APISecurityException in case of invalid authorization header or no header
      */
-    protected String[] extractBasicAuthCredentials(MessageContext synCtx) throws APISecurityException {
+    private String[] extractBasicAuthCredentials(MessageContext synCtx) throws APISecurityException {
         Map headers = (Map) ((Axis2MessageContext) synCtx).getAxis2MessageContext().
                 getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
         if (headers != null) {
             String authHeader = (String) headers.get(securityHeader);
             if (authHeader == null) {
                 throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
-                        "Basic Auth credentials not found");
+                        APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS_MESSAGE);
             } else {
                 if (authHeader.contains(basicAuthKeyHeaderSegment)) {
-                    String[] tempAuthHeader = authHeader.split(authHeaderSplitter);
-                    String remainingAuthHeader = "";
-                    for (int i = 0; i < tempAuthHeader.length; i++) {
-                        String h = tempAuthHeader[i];
-                        if (h.trim().startsWith(basicAuthKeyHeaderSegment)) {
-                            authHeader = h.trim();
-                        } else if (h.trim().startsWith(oauthKeyHeaderSegment) && removeOAuthHeadersFromOutMessage) {
-                            //If oauth header is configured to be removed at the gateway, remove it
-                            continue;
-                        } else {
-                            remainingAuthHeader += h;
-                            if (i < tempAuthHeader.length - 1) {
-                                remainingAuthHeader += authHeaderSplitter;
-                            }
-                        }
-                    }
+                    String[] authHeaderSegments = getAuthHeaderSegments(authHeader);
+                    String basicAuthHeader = authHeaderSegments[0];
+                    String remainingAuthHeader = authHeaderSegments[1];
                     //Remove authorization headers sent for authentication at the gateway and pass others to the backend
-                    if (remainingAuthHeader != "") {
+                    if (remainingAuthHeader != null && !remainingAuthHeader.equals("")) {
                         headers.put(securityHeader, remainingAuthHeader);
                     } else {
                         headers.remove(securityHeader);
                     }
 
                     try {
-                        String authKey = new String(Base64.decode(authHeader.substring(6).trim())); // len(Basic) = 5
-                        if (authKey.contains(":")) {
-                            return authKey.split(":");
+                        String basicAuthKey = new String(Base64.decode(
+                                basicAuthHeader.substring(basicAuthKeyHeaderSegment.length() + 1).trim()));
+                        if (basicAuthKey.contains(":")) {
+                            return basicAuthKey.split(":");
                         } else {
                             throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
-                                    "Invalid authorization key");
+                                    APISecurityConstants.API_AUTH_INVALID_BASIC_AUTH_CREDENTIALS_MESSAGE);
                         }
                     } catch (WSSecurityException e) {
                         throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
-                                "Invalid authorization key");
+                                APISecurityConstants.API_AUTH_INVALID_BASIC_AUTH_CREDENTIALS_MESSAGE);
                     }
                 } else {
                     throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
-                            "Basic Auth credentials not found");
+                            APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS_MESSAGE);
                 }
             }
         }
         throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
-                "Basic Auth credentials not found");
+                APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS_MESSAGE);
+    }
+
+    /**
+     * Separate the Basic Auth header segment from the Auth header.
+     *
+     * @param authHeader The authorization header
+     * @return an String array containing the basic auth header segment followed by
+     * the remaining authorization headers segments concatenated by the header splitter.
+     */
+    private String[] getAuthHeaderSegments(String authHeader) {
+        final String oauthKeyHeaderSegment = "Bearer";
+        final String authHeaderSplitter = ",";
+        String[] authHeaderArr = authHeader.split(authHeaderSplitter);
+        ArrayList<String> remainingAuthHeaders = new ArrayList<>();
+        String basicAuthHeader = "";
+        for (String headerSegment: authHeaderArr) {
+            if (headerSegment.trim().startsWith(basicAuthKeyHeaderSegment)) {
+                basicAuthHeader = headerSegment.trim();
+            } else if (headerSegment.trim().startsWith(oauthKeyHeaderSegment) && removeOAuthHeadersFromOutMessage) {
+                //If oauth header is configured to be removed at the gateway, remove it
+            } else {
+                remainingAuthHeaders.add(headerSegment.trim());
+            }
+        }
+        return new String[] {basicAuthHeader, String.join(authHeaderSplitter, remainingAuthHeaders)};
     }
 
     /**

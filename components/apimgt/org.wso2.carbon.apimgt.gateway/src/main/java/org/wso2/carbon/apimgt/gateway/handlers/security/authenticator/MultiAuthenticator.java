@@ -25,7 +25,7 @@ import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.wso2.carbon.apimgt.gateway.handlers.security.APISecurityConstants;
 import org.wso2.carbon.apimgt.gateway.handlers.security.APISecurityException;
 import org.wso2.carbon.apimgt.gateway.handlers.security.Authenticator;
-import org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth.BasicAuthAuthenticator;
+import org.wso2.carbon.apimgt.gateway.handlers.security.basicauth.BasicAuthAuthenticator;
 import org.wso2.carbon.apimgt.gateway.handlers.security.oauth.OAuthAuthenticator;
 import org.wso2.carbon.apimgt.impl.APIConstants;
 
@@ -149,7 +149,7 @@ public class MultiAuthenticator implements Authenticator {
         APISecurityException apiSecurityException = null;
         int apiSecurityErrorCode = 0;
 
-        int i = 0;
+        int i = 0;//TODO:change name
 
         if (isMutualSSLMandatory) {
             Authenticator firstAuthenticator = authenticatorList.get(0);
@@ -213,7 +213,7 @@ public class MultiAuthenticator implements Authenticator {
             }
         }
         //Update auth header
-        updateAuthHeader(synCtx);
+        updateAuthHeader(synCtx);//TODO:no need
 
         return isAuthenticated;
     }

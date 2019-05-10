@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth;
+package org.wso2.carbon.apimgt.gateway.handlers.security.basicauth;
 
 
 import io.swagger.models.Swagger;

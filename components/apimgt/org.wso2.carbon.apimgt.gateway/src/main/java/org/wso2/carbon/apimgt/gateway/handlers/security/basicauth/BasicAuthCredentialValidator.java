@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth;
+package org.wso2.carbon.apimgt.gateway.handlers.security.basicauth;
 
 
 import io.swagger.models.Path;
@@ -72,7 +72,7 @@ public class BasicAuthCredentialValidator {
 
         ConfigurationContext configurationContext = ServiceReferenceHolder.getInstance().getAxis2ConfigurationContext();
         APIManagerConfiguration config = HostObjectComponent.getAPIManagerConfiguration();
-        String url = config.getFirstProperty(APIConstants.AUTH_MANAGER_URL);
+        String url = config.getFirstProperty(APIConstants.AUTH_MANAGER_URL);//TODO:key validator url
         if (url == null) {
             throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, "API key manager URL unspecified");
         }
@@ -96,8 +96,8 @@ public class BasicAuthCredentialValidator {
      * @return true if the validation passed
      * @throws APISecurityException If an authentication failure or some other error occurs
      */
-    public boolean validate(String username, String password) throws APISecurityException {
-        String providedPasswordHash = hashString(password);
+    public boolean validate(String username, String password) throws APISecurityException { //TODO:observability
+        String providedPasswordHash = hashString(password);//TODO:move inside  // password -> Char array
         if (gatewayKeyCacheEnabled) {
             String cachedPasswordHash = (String) getGatewayUsernameCache().get(username);
             if (cachedPasswordHash != null && cachedPasswordHash.equals(providedPasswordHash)) {
@@ -110,14 +110,15 @@ public class BasicAuthCredentialValidator {
             }
         }
 
-        boolean logged;
+        boolean authenticated;
         try {
-            logged = remoteUserStoreManagerServiceStub.authenticate(username, password);
+            authenticated = remoteUserStoreManagerServiceStub.authenticate(username, password);
         } catch (Exception e) {
             throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
         }
 
-        if (logged) {
+        //TODO: check cache enabled
+        if (authenticated) {
             // put (username->password) into the valid cache
             getGatewayUsernameCache().put(username, providedPasswordHash);
         } else {
@@ -125,7 +126,7 @@ public class BasicAuthCredentialValidator {
             getInvalidUsernameCache().put(username, providedPasswordHash);
         }
 
-        return logged;
+        return authenticated;
     }
 
     /**
@@ -151,10 +152,10 @@ public class BasicAuthCredentialValidator {
                 return true;
             } else {
                 // retrieve the user roles related to the scope of the API resource
-                String resource_roles = null;
+                String resource_roles = null;//TODO: use camel case
                 Path path = swagger.getPath(apiElectedResource);
                 if (path != null) {
-                    if (httpMethod.equals("GET")) {
+                    if (httpMethod.equals("GET")) {//TODO:use constants
                         resource_roles = (String) path.getGet().getVendorExtensions().get(APIConstants.SWAGGER_X_ROLES);
                     } else if (httpMethod.equals("POST")) {
                         resource_roles = (String) path.getPost().getVendorExtensions().get(APIConstants.SWAGGER_X_ROLES);
@@ -164,7 +165,7 @@ public class BasicAuthCredentialValidator {
                         resource_roles = (String) path.getDelete().getVendorExtensions().get(APIConstants.SWAGGER_X_ROLES);
                     }
                 }
-                if (resource_roles != null && resource_roles.trim() != "") {
+                if (resource_roles != null && resource_roles.trim() != "") { //TODO:string utils
                     String[] user_roles;
                     try {
                         user_roles = remoteUserStoreManagerServiceStub.getRoleListOfUser(username);
@@ -225,7 +226,7 @@ public class BasicAuthCredentialValidator {
      *
      * @return the resource cache
      */
-    private Cache getGatewayResourceCache() {
+    private Cache getGatewayResourceCache() { //TODO: method name
         String apimGWCacheExpiry = getApiManagerConfiguration().getFirstProperty(APIConstants.TOKEN_CACHE_EXPIRY);
         if (!gatewayResourceCacheInit) {
             gatewayResourceCacheInit = true;
@@ -336,7 +337,7 @@ public class BasicAuthCredentialValidator {
      *
      * @return true if the gateway token cache is enabled
      */
-    private boolean isGatewayTokenCacheEnabled() {
+    private boolean isGatewayTokenCacheEnabled() { //TODO:move to util
         try {
             APIManagerConfiguration config = getApiManagerConfiguration();
             String cacheEnabled = config.getFirstProperty(APIConstants.GATEWAY_TOKEN_CACHE_ENABLED);

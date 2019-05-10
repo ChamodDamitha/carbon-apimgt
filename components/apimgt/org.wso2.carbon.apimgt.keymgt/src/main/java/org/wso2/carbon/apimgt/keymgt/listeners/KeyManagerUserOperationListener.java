@@ -70,12 +70,13 @@ public class KeyManagerUserOperationListener extends IdentityOathEventListener {
         return getOrderId() - 1;
     }
 
-    @java.lang.Override
-    public boolean doPreAddUser(java.lang.String userName, java.lang.Object credential, java.lang.String[] roleList, java.util.Map<java.lang.String, java.lang.String> claims, java.lang.String profile, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
-        clearGatewayUsernameCache(userName);
-        return super.doPreAddUser(userName, credential, roleList, claims, profile, userStoreManager);
-    }
+//    @java.lang.Override
+//    public boolean doPreAddUser(java.lang.String userName, java.lang.Object credential, java.lang.String[] roleList, java.util.Map<java.lang.String, java.lang.String> claims, java.lang.String profile, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+//        clearGatewayUsernameCache(userName);
+//        return super.doPreAddUser(userName, credential, roleList, claims, profile, userStoreManager);
+//    }
 
+    //TODO:post operations
     @java.lang.Override
     public boolean doPreUpdateCredential(java.lang.String userName, java.lang.Object newCredential, java.lang.Object oldCredential, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
         clearGatewayUsernameCache(userName);
@@ -88,17 +89,17 @@ public class KeyManagerUserOperationListener extends IdentityOathEventListener {
         return super.doPreUpdateCredentialByAdmin(userName, newCredential, userStoreManager);
     }
 
-    @java.lang.Override
-    public boolean doPreDeleteUserClaimValues(java.lang.String userName, java.lang.String[] claims, java.lang.String profileName, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
-        clearGatewayUsernameCache(userName);
-        return super.doPreDeleteUserClaimValues(userName, claims, profileName, userStoreManager);
-    }
-
-    @java.lang.Override
-    public boolean doPreDeleteUserClaimValue(java.lang.String userName, java.lang.String claimURI, java.lang.String profileName, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
-        clearGatewayUsernameCache(userName);
-        return super.doPreDeleteUserClaimValue(userName, claimURI, profileName, userStoreManager);
-    }
+//    @java.lang.Override
+//    public boolean doPreDeleteUserClaimValues(java.lang.String userName, java.lang.String[] claims, java.lang.String profileName, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+//        clearGatewayUsernameCache(userName);
+//        return super.doPreDeleteUserClaimValues(userName, claims, profileName, userStoreManager);
+//    }
+//
+//    @java.lang.Override
+//    public boolean doPreDeleteUserClaimValue(java.lang.String userName, java.lang.String claimURI, java.lang.String profileName, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
+//        clearGatewayUsernameCache(userName);
+//        return super.doPreDeleteUserClaimValue(userName, claimURI, profileName, userStoreManager);
+//    }
 
     @java.lang.Override
     public boolean doPreAddRole(java.lang.String roleName, java.lang.String[] userList, Permission[] permissions, UserStoreManager userStoreManager) throws org.wso2.carbon.user.core.UserStoreException {
