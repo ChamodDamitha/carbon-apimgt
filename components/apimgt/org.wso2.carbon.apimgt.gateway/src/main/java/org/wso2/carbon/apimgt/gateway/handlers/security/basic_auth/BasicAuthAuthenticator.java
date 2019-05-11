@@ -122,7 +122,7 @@ public class BasicAuthAuthenticator implements Authenticator {
         boolean logged = basicAuthCredentialValidator.validate(username, password);
         if (!logged) {
             throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
-                    "Authentication failed due to username & password mismatch");
+                    APISecurityConstants.API_AUTH_INVALID_BASIC_AUTH_CREDENTIALS_MESSAGE);
         } else { // username password matches
             //scope validation
             boolean scopesValid = basicAuthCredentialValidator.validateScopes(username, swagger, synCtx);
@@ -170,7 +170,7 @@ public class BasicAuthAuthenticator implements Authenticator {
             String authHeader = (String) headers.get(securityHeader);
             if (authHeader == null) {
                 throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
-                        "Basic Auth credentials not found");
+                        APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS_MESSAGE);
             } else {
                 if (authHeader.contains(basicAuthKeyHeaderSegment)) {
                     String[] tempAuthHeader = authHeader.split(authHeaderSplitter);
@@ -202,20 +202,20 @@ public class BasicAuthAuthenticator implements Authenticator {
                             return authKey.split(":");
                         } else {
                             throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
-                                    "Invalid authorization key");
+                                    APISecurityConstants.API_AUTH_INVALID_BASIC_AUTH_CREDENTIALS_MESSAGE);
                         }
                     } catch (WSSecurityException e) {
                         throw new APISecurityException(APISecurityConstants.API_AUTH_INVALID_CREDENTIALS,
-                                "Invalid authorization key");
+                                APISecurityConstants.API_AUTH_INVALID_BASIC_AUTH_CREDENTIALS_MESSAGE);
                     }
                 } else {
                     throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
-                            "Basic Auth credentials not found");
+                            APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS_MESSAGE);
                 }
             }
         }
         throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS,
-                "Basic Auth credentials not found");
+                APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS_MESSAGE);
     }
 
     /**

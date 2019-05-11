@@ -22,6 +22,7 @@ import org.apache.axiom.om.OMFactory;
 import org.apache.axiom.om.OMNamespace;
 import org.apache.axis2.AxisFault;
 import org.apache.axis2.Constants;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHeaders;
@@ -40,7 +41,6 @@ import org.wso2.carbon.apimgt.api.APIManagementException;
 import org.wso2.carbon.apimgt.gateway.APIMgtGatewayConstants;
 import org.wso2.carbon.apimgt.gateway.MethodStats;
 import org.wso2.carbon.apimgt.gateway.handlers.Utils;
-import org.wso2.carbon.apimgt.gateway.handlers.security.authenticator.MultiAuthenticator;
 import org.wso2.carbon.apimgt.gateway.handlers.security.authenticator.MutualSSLAuthenticator;
 import org.wso2.carbon.apimgt.gateway.handlers.security.basic_auth.BasicAuthAuthenticator;
 import org.wso2.carbon.apimgt.gateway.handlers.security.oauth.OAuthAuthenticator;
@@ -78,7 +78,7 @@ import java.util.regex.Pattern;
 public class APIAuthenticationHandler extends AbstractHandler implements ManagedLifecycle {
     private static final Log log = LogFactory.getLog(APIAuthenticationHandler.class);
 
-    private volatile Authenticator authenticator;
+    private volatile HashMap<String, Authenticator> authenticators = null;
     private SynapseEnvironment synapseEnvironment;
 
     private String authorizationHeader;
@@ -86,6 +86,11 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
     private String apiLevelPolicy;
     private String certificateInformation;
     private String apiId;
+
+    private boolean isOAuthProtected;
+    private boolean isMutualSSLProtected;
+    private boolean isBasicAuthProtected;
+    private boolean isMutualSSLMandatory;
 
     public String getApiId() {
         return apiId;
@@ -138,8 +143,16 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
         if (log.isDebugEnabled()) {
             log.debug("Initializing API authentication handler instance");
         }
+        isOAuthProtected =
+                apiSecurity == null || apiSecurity.contains(APIConstants.DEFAULT_API_SECURITY_OAUTH2);
+        isMutualSSLProtected =
+                apiSecurity != null && apiSecurity.contains(APIConstants.API_SECURITY_MUTUAL_SSL);
+        isBasicAuthProtected =
+                apiSecurity != null && apiSecurity.contains(APIConstants.API_SECURITY_BASIC_AUTH);
+        isMutualSSLMandatory =
+                apiSecurity != null && apiSecurity.contains(APIConstants.API_SECURITY_MUTUAL_SSL_MANDATORY);
         if (getApiManagerConfigurationService() != null) {
-            initializeAuthenticator();
+            initializeAuthenticators();
         }
     }
 
@@ -192,61 +205,42 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
     }
 
     public void destroy() {
-        if (authenticator != null) {
-            authenticator.destroy();
-        } else {
-            log.warn("Unable to destroy uninitialized authentication handler instance");
+        for (Map.Entry<String, Authenticator> entry : authenticators.entrySet()) {
+            entry.getValue().destroy();
         }
     }
 
     @edu.umd.cs.findbugs.annotations.SuppressWarnings(value = "LEST_LOST_EXCEPTION_STACK_TRACE", justification = "The exception needs to thrown for fault sequence invocation")
-    protected void initializeAuthenticator() {
-        getAuthenticator().init(synapseEnvironment);
-    }
+    protected void initializeAuthenticators() {
+        authenticators = new HashMap<>();
 
-    protected Authenticator getAuthenticator() {
-        boolean isOAuthProtected =
-                apiSecurity == null || apiSecurity.contains(APIConstants.DEFAULT_API_SECURITY_OAUTH2);
-        boolean isMutualSSLProtected =
-                apiSecurity != null && apiSecurity.contains(APIConstants.API_SECURITY_MUTUAL_SSL);
-        boolean isBasicAuthProtected =
-                apiSecurity != null && apiSecurity.contains(APIConstants.API_SECURITY_BASIC_AUTH);
-        if (authenticator == null) {
-            if (isOAuthProtected) {
+        if (authorizationHeader == null) {
+            try {
+                authorizationHeader = APIUtil
+                        .getOAuthConfigurationFromAPIMConfig(APIConstants.AUTHORIZATION_HEADER);
                 if (authorizationHeader == null) {
-                    try {
-                        authorizationHeader = APIUtil
-                                .getOAuthConfigurationFromAPIMConfig(APIConstants.AUTHORIZATION_HEADER);
-                        if (authorizationHeader == null) {
-                            authorizationHeader = HttpHeaders.AUTHORIZATION;
-                        }
-                    } catch (APIManagementException e) {
-                        log.error("Error while reading authorization header from APIM configurations", e);
-                    }
+                    authorizationHeader = HttpHeaders.AUTHORIZATION;
                 }
-            }
-            if (isBasicAuthProtected && authorizationHeader == null) {
-                authorizationHeader = HttpHeaders.AUTHORIZATION;
-            }
-            if (((isOAuthProtected || isBasicAuthProtected) && isMutualSSLProtected)
-                    || (isBasicAuthProtected && isOAuthProtected)) {
-                Map<String, Object> parametersForAuthenticator = new HashMap<>();
-                parametersForAuthenticator.put(APIConstants.AUTHORIZATION_HEADER, authorizationHeader);
-                parametersForAuthenticator.put(APIConstants.REMOVE_OAUTH_HEADERS_FROM_MESSAGE, removeOAuthHeadersFromOutMessage);
-                parametersForAuthenticator.put(APIConstants.API_LEVEL_POLICY, apiLevelPolicy);
-                parametersForAuthenticator.put(APIConstants.CERTIFICATE_INFORMATION, certificateInformation);
-                parametersForAuthenticator.put(APIConstants.API_SECURITY, apiSecurity);
-                parametersForAuthenticator.put(APIConstants.SUBSCRIPTION_FIELD_API_ID, apiId);
-                authenticator = new MultiAuthenticator(parametersForAuthenticator);
-            } else if (isOAuthProtected) {
-                authenticator = new OAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage);
-            } else if (isBasicAuthProtected) {
-                authenticator = new BasicAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage, apiId);
-            } else {
-                authenticator = new MutualSSLAuthenticator(apiLevelPolicy, certificateInformation);
+            } catch (APIManagementException e) {
+                log.error("Error while reading authorization header from APIM configurations", e);
             }
         }
-        return authenticator;
+        Authenticator authenticator;
+        if (isOAuthProtected) {
+            authenticator = new OAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage);
+            authenticator.init(synapseEnvironment);
+            authenticators.put(APIConstants.DEFAULT_API_SECURITY_OAUTH2, authenticator);
+        }
+        if (isBasicAuthProtected) {
+            authenticator = new BasicAuthAuthenticator(authorizationHeader, removeOAuthHeadersFromOutMessage, apiId);
+            authenticator.init(synapseEnvironment);
+            authenticators.put(APIConstants.API_SECURITY_BASIC_AUTH, authenticator);
+        }
+        if (isMutualSSLProtected) {
+            authenticator = new MutualSSLAuthenticator(apiLevelPolicy, certificateInformation);
+            authenticator.init(synapseEnvironment);
+            authenticators.put(APIConstants.API_SECURITY_MUTUAL_SSL, authenticator);
+        }
     }
 
     @MethodStats
@@ -275,8 +269,8 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
                 long currentTime = System.currentTimeMillis();
                 messageContext.setProperty("api.ut.requestTime", Long.toString(currentTime));
             }
-            if (authenticator == null) {
-                initializeAuthenticator();
+            if (authenticators == null) {
+                initializeAuthenticators();
             }
             if (isAuthenticate(messageContext)) {
                 setAPIParametersToMessageContext(messageContext);
@@ -335,8 +329,97 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
         return timer.start();
     }
 
+    /**
+     * Authenticates the given request using the authenticators which have been initialized.
+     *
+     * @param messageContext The message to be authenticated
+     * @return true if the authentication is successful (never returns false)
+     * @throws APISecurityException If an authentication failure or some other error occurs
+     */
     protected boolean isAuthenticate(MessageContext messageContext) throws APISecurityException {
-        return authenticator.authenticate(messageContext);
+        int apiSecurityErrorCode = 0;
+        String errorMessage = "";
+        APISecurityException apiSecurityException = null;
+        boolean isMutualSSLauthenticated = false;
+
+        if (isMutualSSLProtected) {
+            try {
+                isMutualSSLauthenticated = authenticators.get(APIConstants.API_SECURITY_MUTUAL_SSL).authenticate(messageContext);
+            } catch (APISecurityException ex) {
+                if (isMutualSSLMandatory) {
+                    // If Mutual SSL fails and it is mandatory, authentication fails
+                    throw ex;
+                } else {
+                    errorMessage = updateErrorMessage(errorMessage, ex);
+                    apiSecurityException = ex;
+                }
+            }
+        }
+        if (isOAuthProtected) {
+            try {
+                // If OAuth passes, authentication passes
+                return authenticators.get(APIConstants.DEFAULT_API_SECURITY_OAUTH2).authenticate(messageContext);
+            } catch (APISecurityException ex) {
+                errorMessage = updateErrorMessage(errorMessage, ex);
+                if (ex.getErrorCode() == APISecurityConstants.API_AUTH_MISSING_CREDENTIALS) {
+                    apiSecurityErrorCode = APISecurityConstants.API_AUTH_MISSING_CREDENTIALS;
+                } else {
+                    apiSecurityException = apiSecurityException == null ? ex : null;
+                }
+            }
+        }
+        if (isBasicAuthProtected) {
+            try {
+                // If Basic Auth passes, authentication passes
+                return authenticators.get(APIConstants.API_SECURITY_BASIC_AUTH).authenticate(messageContext);
+            } catch (APISecurityException ex) {
+                errorMessage = updateErrorMessage(errorMessage, ex);
+                if (ex.getErrorCode() == APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS) {
+                    if (apiSecurityErrorCode == APISecurityConstants.API_AUTH_MISSING_CREDENTIALS) {
+                        apiSecurityErrorCode = APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_AND_OAUTH_CREDENTIALS;
+                    } else {
+                        apiSecurityErrorCode = APISecurityConstants.API_AUTH_MISSING_BASIC_AUTH_CREDENTIALS;
+                    }
+                } else {
+                    apiSecurityException = apiSecurityException == null ? ex : null;
+                }
+            }
+        }
+
+        if (isMutualSSLauthenticated && !isBasicAuthProtected && !isOAuthProtected) {
+            // If only protected by mutual SSL and it has passed, authentication passes
+            return true;
+        }
+
+        if (apiSecurityException != null) {
+            // If only one authenticator has been used and it has failed
+            throw apiSecurityException;
+        } else if (apiSecurityErrorCode != 0) {
+            // If missing auth credentials exceptions have occurred
+            throw new APISecurityException(apiSecurityErrorCode, errorMessage);
+        } else {
+            // If multiple authenticators have failed
+            throw new APISecurityException(APISecurityConstants.MULTI_AUTHENTICATION_FAILURE, errorMessage);
+        }
+
+    }
+
+    private String updateErrorMessage(String errorMessage, Exception e) {
+        if (StringUtils.isNotEmpty(errorMessage)) {
+            errorMessage += " and ";
+        }
+        errorMessage += e.getMessage();
+        return errorMessage;
+    }
+
+    private String getAuthenticatorsChallengeString() {
+        StringBuilder challengeString = new StringBuilder();
+        if (authenticators != null) {
+            for (Map.Entry<String, Authenticator> entry : authenticators.entrySet()) {
+                challengeString.append(entry.getValue().getChallengeString()).append(" ");
+            }
+        }
+        return challengeString.toString().trim();
     }
 
     protected boolean isAnalyticsEnabled() {
@@ -386,7 +469,7 @@ public class APIAuthenticationHandler extends AbstractHandler implements Managed
             Map<String, String> headers =
                     (Map) axis2MC.getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
             if (headers != null) {
-                headers.put(HttpHeaders.WWW_AUTHENTICATE, getAuthenticator().getChallengeString() +
+                headers.put(HttpHeaders.WWW_AUTHENTICATE, getAuthenticatorsChallengeString() +
                         ", error=\"invalid token\"" +
                         ", error_description=\"The access token expired\"");
                 axis2MC.setProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS, headers);
