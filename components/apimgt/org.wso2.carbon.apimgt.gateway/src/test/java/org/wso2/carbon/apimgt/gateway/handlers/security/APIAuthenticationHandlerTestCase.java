@@ -42,6 +42,7 @@ import org.wso2.carbon.caching.impl.Util;
 import org.wso2.carbon.metrics.manager.MetricManager;
 import org.wso2.carbon.metrics.manager.Timer;
 
+import java.util.HashMap;
 import java.util.TreeMap;
 
 /*
@@ -125,7 +126,6 @@ public class APIAuthenticationHandlerTestCase {
         messageContext.setProperty(RESTConstants.REST_FULL_REQUEST_PATH, "");
         Mockito.when(axis2MsgCntxt.getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS)).thenReturn(transportHeaders);
         axis2MsgCntxt.setProperty(APIMgtGatewayConstants.REQUEST_RECEIVED_TIME, null);
-        apiAuthenticationHandler.getAuthenticator();
         Assert.assertFalse(apiAuthenticationHandler.handleRequest(messageContext));
 
         Mockito.when(messageContext.isDoingGET()).thenReturn(true);
@@ -193,6 +193,7 @@ public class APIAuthenticationHandlerTestCase {
     private APIAuthenticationHandler createAPIAuthenticationHandler() {
         return new APIAuthenticationHandler() {
 
+
             @Override
             protected APIManagerConfigurationService getApiManagerConfigurationService() {
                 return Mockito.mock(APIManagerConfigurationService.class);
@@ -204,23 +205,7 @@ public class APIAuthenticationHandlerTestCase {
             }
 
             @Override
-            protected Authenticator getAuthenticator() {
-                return new OAuthAuthenticator() {
-                    @Override
-                    public void init(SynapseEnvironment env) {
-                    }
-
-                    @Override
-                    public boolean authenticate(MessageContext synCtx) throws APISecurityException {
-                        return true;
-                    }
-                };
-            }
-
-            @Override
-            protected void initializeAuthenticator() {
-                getAuthenticator().init(null);
-            }
+            protected void initializeAuthenticators() {}
 
             @Override
             protected boolean isAuthenticate(MessageContext messageContext) throws APISecurityException {
@@ -261,23 +246,7 @@ public class APIAuthenticationHandlerTestCase {
             }
 
             @Override
-            protected Authenticator getAuthenticator() {
-                return new OAuthAuthenticator() {
-                    @Override
-                    public void init(SynapseEnvironment env) {
-                    }
-
-                    @Override
-                    public boolean authenticate(MessageContext synCtx) throws APISecurityException {
-                        return true;
-                    }
-                };
-            }
-
-            @Override
-            protected void initializeAuthenticator() {
-                getAuthenticator().init(null);
-            }
+            protected void initializeAuthenticators() {}
 
             @Override
             protected boolean isAuthenticate(MessageContext messageContext) throws APISecurityException {
@@ -314,16 +283,6 @@ public class APIAuthenticationHandlerTestCase {
                 getFaultPayload(e);
             }
         };
-    }
-
-    @Test
-    public void testGetAuthenticator() throws Exception {
-      APIAuthenticationHandler apiAuthenticationHandler = new APIAuthenticationHandler();
-      PowerMockito.mockStatic(APIUtil.class);
-      PowerMockito.when(APIUtil.getOAuthConfigurationFromAPIMConfig(APIConstants.AUTHORIZATION_HEADER)).thenReturn("AUTH_HEADER");
-      Assert.assertNotNull(apiAuthenticationHandler.getAuthenticator());
-
-      // test destroy when authenticator is not null todo
     }
 
     @Test
