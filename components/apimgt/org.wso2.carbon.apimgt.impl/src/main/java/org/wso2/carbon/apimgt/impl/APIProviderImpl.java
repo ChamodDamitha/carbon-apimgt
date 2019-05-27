@@ -1903,6 +1903,7 @@ class APIProviderImpl extends AbstractAPIManager implements APIProvider {
             boolean isMutualSSL = false;
             boolean isBasicAuth = false;
             boolean isMutualSSLMandatory = false;
+            boolean isOauthBasicAuthMandatory = false;
             for (String apiSecurityLevel : apiSecurityLevels) {
                 if (apiSecurityLevel.trim().equalsIgnoreCase(APIConstants.DEFAULT_API_SECURITY_OAUTH2)) {
                     isOauth2 = true;
@@ -1915,6 +1916,9 @@ class APIProviderImpl extends AbstractAPIManager implements APIProvider {
                 }
                 if (apiSecurityLevel.trim().equalsIgnoreCase(APIConstants.API_SECURITY_MUTUAL_SSL_MANDATORY)) {
                     isMutualSSLMandatory = true;
+                }
+                if (apiSecurityLevel.trim().equalsIgnoreCase(APIConstants.API_SECURITY_OAUTH_BASIC_AUTH_MANDATORY)) {
+                    isOauthBasicAuthMandatory = true;
                 }
             }
             apiSecurity = APIConstants.DEFAULT_API_SECURITY_OAUTH2;
@@ -1935,6 +1939,9 @@ class APIProviderImpl extends AbstractAPIManager implements APIProvider {
 
             if (isMutualSSLMandatory) {
                 apiSecurity += ("," + APIConstants.API_SECURITY_MUTUAL_SSL_MANDATORY);
+            }
+            if (isOauthBasicAuthMandatory) {
+                apiSecurity += ("," + APIConstants.API_SECURITY_OAUTH_BASIC_AUTH_MANDATORY);
             }
         }
         if (log.isDebugEnabled()) {
