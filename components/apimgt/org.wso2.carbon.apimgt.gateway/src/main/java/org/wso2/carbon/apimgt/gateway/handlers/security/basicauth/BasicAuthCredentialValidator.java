@@ -26,6 +26,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.MessageContext;
 import org.apache.synapse.core.SynapseEnvironment;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
+import org.apache.synapse.rest.RESTConstants;
 import org.wso2.carbon.apimgt.gateway.MethodStats;
 import org.wso2.carbon.apimgt.gateway.handlers.security.APISecurityConstants;
 import org.wso2.carbon.apimgt.gateway.handlers.security.APISecurityException;
@@ -84,7 +85,8 @@ public class BasicAuthCredentialValidator {
         APIManagerConfiguration config = HostObjectComponent.getAPIManagerConfiguration();
         String url = config.getFirstProperty(APIConstants.API_KEY_VALIDATOR_URL);
         if (url == null) {
-            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, "API key manager URL unspecified");
+            throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR,
+                    "API key manager URL unspecified");
         }
 
         try {
@@ -104,8 +106,8 @@ public class BasicAuthCredentialValidator {
     /**
      * Return the resource authentication scheme of the API resource.
      *
-     * @param swagger  swagger of the API
-     * @param synCtx   The message to be authenticated
+     * @param swagger swagger of the API
+     * @param synCtx  The message to be authenticated
      * @return the resource authentication scheme
      */
     public String getResourceAuthenticationScheme(Swagger swagger, MessageContext synCtx) {
@@ -134,6 +136,10 @@ public class BasicAuthCredentialValidator {
         //validate tenant
         String resourceTenant = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantDomain();
         if (!MultitenantUtils.getTenantDomain(username).equals(resourceTenant)) {
+            if (log.isDebugEnabled()) {
+                log.debug("Basic Authentication: User <".concat(username)
+                        .concat("> is forbidden to access the API in the tenant: ").concat(resourceTenant));
+            }
             throw new APISecurityException(APISecurityConstants.API_AUTH_FORBIDDEN,
                     APISecurityConstants.API_AUTH_FORBIDDEN_MESSAGE);
         }
@@ -143,10 +149,12 @@ public class BasicAuthCredentialValidator {
             providedPasswordHash = hashString(password);
             String cachedPasswordHash = (String) getGatewayUsernameCache().get(username);
             if (cachedPasswordHash != null && cachedPasswordHash.equals(providedPasswordHash)) {
+                log.debug("Basic Authentication: <Valid Username Cache> Username & password authenticated");
                 return true; //If (username->password) is in the valid cache
             } else {
                 String invalidCachedPasswordHash = (String) getInvalidUsernameCache().get(username);
                 if (invalidCachedPasswordHash != null && invalidCachedPasswordHash.equals(providedPasswordHash)) {
+                    log.debug("Basic Authentication: <Invalid Username Cache> Username & password authentication failed");
                     return false; //If (username->password) is in the invalid cache
                 }
             }
@@ -156,6 +164,7 @@ public class BasicAuthCredentialValidator {
         try {
             authenticated = authAdminStub.login(username, password, host);
         } catch (RemoteException | LoginAuthenticationExceptionException e) {
+            log.debug("Basic Authentication: Username and Password authentication failure");
             throw new APISecurityException(APISecurityConstants.API_AUTH_GENERAL_ERROR, e.getMessage());
         }
 
@@ -183,8 +192,10 @@ public class BasicAuthCredentialValidator {
      */
     @MethodStats
     public boolean validateScopes(String username, Swagger swagger, MessageContext synCtx) throws APISecurityException {
+        String apiContext = (String) synCtx.getProperty(RESTConstants.REST_API_CONTEXT);
+        String apiVersion = (String) synCtx.getProperty(RESTConstants.SYNAPSE_REST_API_VERSION);
+        String apiElectedResource = (String) synCtx.getProperty(APIConstants.API_ELECTED_RESOURCE);
         if (swagger != null) {
-            String apiElectedResource = (String) synCtx.getProperty(APIConstants.API_ELECTED_RESOURCE);
             org.apache.axis2.context.MessageContext axis2MessageContext =
                     ((Axis2MessageContext) synCtx).getAxis2MessageContext();
             String httpMethod = (String) axis2MessageContext.getProperty(APIConstants.DigestAuthConstants.HTTP_METHOD);
@@ -230,12 +241,21 @@ public class BasicAuthCredentialValidator {
                     if (gatewayKeyCacheEnabled) {
                         getGatewayBasicAuthResourceCache().put(resourceCacheKey, resourceKey);
                     }
+                    if (log.isDebugEnabled()) {
+                        log.debug("Basic Authentication: No scopes for the API resource: ".concat(resourceKey));
+                    }
                     return true;
                 }
             }
         } else {
-            // No scopes for API
+            if (log.isDebugEnabled()) {
+                log.debug("Basic Authentication: No swagger found in the gateway for the API: ".concat(apiContext)
+                        .concat(":").concat(apiVersion));
+            }
             return true;
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("Basic Authentication: Scope validation failed for the API resource: ".concat(apiElectedResource));
         }
         throw new APISecurityException(APISecurityConstants.INVALID_SCOPE, "Scope validation failed");
     }
@@ -243,8 +263,8 @@ public class BasicAuthCredentialValidator {
     /**
      * Return the throttling tier of the API resource.
      *
-     * @param swagger  swagger of the API
-     * @param synCtx   The message to be authenticated
+     * @param swagger swagger of the API
+     * @param synCtx  The message to be authenticated
      * @return the resource throttling tier
      */
     public String getResourceThrottlingTier(Swagger swagger, MessageContext synCtx) {
