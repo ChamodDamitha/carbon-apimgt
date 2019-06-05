@@ -67,13 +67,15 @@ public class OAuthAuthenticator implements Authenticator {
     private String clientDomainHeader = "referer";
     private String requestOrigin;
     private String remainingAuthHeader;
+    private boolean isMandatory;
 
     public OAuthAuthenticator() {
     }
 
-    public OAuthAuthenticator(String authorizationHeader, boolean removeOAuthHeader) {
+    public OAuthAuthenticator(String authorizationHeader, boolean isMandatory, boolean removeOAuthHeader) {
         this.securityHeader = authorizationHeader;
         this.removeOAuthHeadersFromOutMessage = removeOAuthHeader;
+        this.isMandatory = isMandatory;
     }
 
     public void init(SynapseEnvironment env) {
@@ -88,7 +90,7 @@ public class OAuthAuthenticator implements Authenticator {
     }
 
     @MethodStats
-    public boolean authenticate(MessageContext synCtx) throws APISecurityException {
+    public AuthenticationResponse authenticate(MessageContext synCtx) {
         String apiKey = null;
         boolean defaultVersionInvoked = false;
         TracingSpan getClientDomainSpan = null;
@@ -162,7 +164,12 @@ public class OAuthAuthenticator implements Authenticator {
             authenticationSchemeSpan =
                     Util.startSpan(APIMgtGatewayConstants.GET_RESOURCE_AUTHENTICATION_SCHEME, keySpan, tracer);
         }
-        String authenticationScheme = getAPIKeyValidator().getResourceAuthenticationScheme(synCtx);
+        String authenticationScheme;
+        try {
+            authenticationScheme = getAPIKeyValidator().getResourceAuthenticationScheme(synCtx);
+        } catch (APISecurityException ex) {
+            return new AuthenticationResponse(false, isMandatory, true, ex.getErrorCode(), ex.getMessage());
+        }
         if (Util.tracingEnabled()) {
             Util.finishSpan(authenticationSchemeSpan);
         }
@@ -213,7 +220,7 @@ public class OAuthAuthenticator implements Authenticator {
             authContext.setApplicationId(clientIP); //Set clientIp as application ID in unauthenticated scenario
             authContext.setConsumerKey(null);
             APISecurityUtils.setAuthenticationContext(synCtx, authContext, securityContextHeader);
-            return true;
+            return new AuthenticationResponse(true, isMandatory, false, 0, null);
         } else if (APIConstants.NO_MATCHING_AUTH_SCHEME.equals(authenticationScheme)) {
             info = new APIKeyValidationInfoDTO();
             info.setAuthorized(false);
@@ -230,8 +237,8 @@ public class OAuthAuthenticator implements Authenticator {
                     log.debug("Could not find api version");
                 }
             }
-            throw new APISecurityException(APISecurityConstants.API_AUTH_MISSING_CREDENTIALS,
-                    "Required OAuth credentials not provided");
+            return new AuthenticationResponse(false, isMandatory, true,
+                    APISecurityConstants.API_AUTH_MISSING_CREDENTIALS, "Required OAuth credentials not provided");
         } else {
             String matchingResource = (String) synCtx.getProperty(APIConstants.API_ELECTED_RESOURCE);
             if(log.isDebugEnabled()){
@@ -247,8 +254,12 @@ public class OAuthAuthenticator implements Authenticator {
                 TracingTracer tracer = Util.getGlobalTracer();
                 keyInfo = Util.startSpan(APIMgtGatewayConstants.GET_KEY_VALIDATION_INFO, keySpan, tracer);
             }
-            info = getAPIKeyValidator().getKeyValidationInfo(apiContext, apiKey, apiVersion, authenticationScheme, clientDomain,
-                    matchingResource, httpMethod, defaultVersionInvoked);
+            try {
+                info = getAPIKeyValidator().getKeyValidationInfo(apiContext, apiKey, apiVersion, authenticationScheme, clientDomain,
+                        matchingResource, httpMethod, defaultVersionInvoked);
+            } catch (APISecurityException ex) {
+                return new AuthenticationResponse(false, isMandatory, true, ex.getErrorCode(), ex.getMessage());
+            }
             if (Util.tracingEnabled()) {
                 Util.finishSpan(keyInfo);
             }
@@ -293,12 +304,13 @@ public class OAuthAuthenticator implements Authenticator {
             if(log.isDebugEnabled()){
                 log.debug("User is authorized to access the Resource");
             }
-            return true;
+            return new AuthenticationResponse(true, isMandatory, false, 0, null);
         } else {
             if(log.isDebugEnabled()){
                 log.debug("User is NOT authorized to access the Resource");
             }
-            throw new APISecurityException(info.getValidationStatus(), "Access failure for API: " + apiContext +
+            return new AuthenticationResponse(false, isMandatory, true, info.getValidationStatus(),
+                    "Access failure for API: " + apiContext +
                     ", version: "+ apiVersion + " status: (" + info.getValidationStatus() +
                     ") - " + APISecurityConstants.getAuthenticationFailureMessage(info.getValidationStatus()));
         }
@@ -482,4 +494,13 @@ public class OAuthAuthenticator implements Authenticator {
         return this.keyValidator;
     }
 
+    @Override
+    public int getPriority() {
+        return 10;
+    }
+
+    @Override
+    public void setMandatory(boolean isMandatory) {
+        this.isMandatory = true;
+    }
 }
